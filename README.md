@@ -44,7 +44,7 @@ claude mcp add appstore-connect \
   --env ASC_KEY_ID=YOUR_KEY_ID \
   --env ASC_ISSUER_ID=YOUR_ISSUER_ID \
   --env ASC_PRIVATE_KEY_PATH=/absolute/path/to/AuthKey_XXXXXXXXXX.p8 \
-  -- npx -y app-store-connect-mcp
+  -- npx -y storemate-mcp
 ```
 
 Add `--scope user` to make it available in **every** project (default is the
@@ -60,7 +60,7 @@ Add this to your client's MCP config (for Claude Desktop:
   "mcpServers": {
     "appstore-connect": {
       "command": "npx",
-      "args": ["-y", "app-store-connect-mcp"],
+      "args": ["-y", "storemate-mcp"],
       "env": {
         "ASC_KEY_ID": "YOUR_KEY_ID",
         "ASC_ISSUER_ID": "YOUR_ISSUER_ID",
@@ -225,8 +225,8 @@ More: **[docs/SECURITY.md](docs/SECURITY.md)**.
 ## Development
 
 ```bash
-git clone https://github.com/fil-technology/app-store-connect-mcp.git
-cd app-store-connect-mcp
+git clone https://github.com/fil-technology/storemate-mcp.git
+cd storemate-mcp
 npm install
 cp .env.example .env   # fill in your credentials
 node src/index.js      # runs the server on stdio (Ctrl-C to stop)
