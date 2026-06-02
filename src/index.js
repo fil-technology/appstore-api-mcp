@@ -17,6 +17,8 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { AppStoreConnectClient } from "./client.js";
+import { LIMITS, validateAttributes, buildDiff } from "./validation.js";
+import { writeBlockReason, writeModeSummary } from "./guardrails.js";
 
 const client = new AppStoreConnectClient({
   keyId: process.env.ASC_KEY_ID,
@@ -35,57 +37,7 @@ const fail = (e) => ({
 });
 
 // ---- Shared helpers (validation, diff, concurrency) -------------------------
-
-// Apple's documented length limits for editable metadata fields.
-const LIMITS = {
-  name: 30,
-  subtitle: 30,
-  keywords: 100,
-  promotionalText: 170,
-  description: 4000,
-  whatsNew: 4000,
-};
-
-/** Warn about fields that exceed Apple's limits. Non-blocking. */
-function validateAttributes(attributes) {
-  const warnings = [];
-  for (const [field, value] of Object.entries(attributes)) {
-    const limit = LIMITS[field];
-    if (limit && typeof value === "string" && value.length > limit) {
-      warnings.push(
-        `'${field}' is ${value.length} chars — exceeds Apple's limit of ${limit}.`,
-      );
-    }
-  }
-  return warnings;
-}
-
-/**
- * Build a field-by-field diff between current attributes and proposed changes,
- * including length/limit info. Used by dry-run mode.
- */
-function buildDiff(current = {}, attributes) {
-  const changes = [];
-  for (const [field, to] of Object.entries(attributes)) {
-    const from = current[field] ?? null;
-    const limit = LIMITS[field];
-    changes.push({
-      field,
-      from,
-      to,
-      changed: from !== to,
-      ...(limit
-        ? {
-            newLength: typeof to === "string" ? to.length : null,
-            limit,
-            exceedsLimit:
-              typeof to === "string" ? to.length > limit : false,
-          }
-        : {}),
-    });
-  }
-  return changes;
-}
+// LIMITS / validateAttributes / buildDiff live in ./validation.js (unit-tested).
 
 /**
  * Dry-run vs apply for an update. When dryRun is true, fetch current values,
@@ -193,6 +145,69 @@ function ensureAltoolKey(keyId) {
     copyFileSync(src, dest);
   }
   return true;
+}
+
+// ---- Snapshot helpers ----
+
+const SNAPSHOT_DIR =
+  process.env.APPSTORE_MCP_SNAPSHOT_DIR ||
+  join(homedir(), ".appstore-api-mcp", "snapshots");
+
+const APP_INFO_FIELDS = ["name", "subtitle", "privacyPolicyUrl", "privacyPolicyText"];
+const VERSION_LOC_FIELDS = [
+  "description",
+  "keywords",
+  "promotionalText",
+  "whatsNew",
+  "marketingUrl",
+  "supportUrl",
+];
+
+/** Collect an app's editable TEXT metadata (the snapshot/diff/restore payload). */
+async function collectAppMetadata(appId) {
+  const app = await client.get(`/apps/${appId}`);
+  const snap = {
+    appId,
+    name: app.data.attributes.name,
+    bundleId: app.data.attributes.bundleId,
+    capturedAt: new Date().toISOString(),
+    appInfo: null,
+    version: null,
+    screenshots: [],
+  };
+  const infos = await client.getAll(`/apps/${appId}/appInfos`);
+  if (infos.length) {
+    const il = await client.getAll(`/appInfos/${infos[0].id}/appInfoLocalizations`);
+    snap.appInfo = { id: infos[0].id, localizations: {} };
+    for (const l of il) {
+      const o = {};
+      for (const f of APP_INFO_FIELDS) o[f] = l.attributes[f] ?? null;
+      snap.appInfo.localizations[l.attributes.locale] = { id: l.id, ...o };
+    }
+  }
+  const versions = await client.getAll(`/apps/${appId}/appStoreVersions`, { limit: 5 });
+  const ed = versions.find((v) => EDITABLE_VERSION_STATES.has(v.attributes.appStoreState)) || versions[0];
+  if (ed) {
+    const locs = await client.getAll(`/appStoreVersions/${ed.id}/appStoreVersionLocalizations`);
+    snap.version = { id: ed.id, versionString: ed.attributes.versionString, localizations: {} };
+    for (const l of locs) {
+      const o = {};
+      for (const f of VERSION_LOC_FIELDS) o[f] = l.attributes[f] ?? null;
+      snap.version.localizations[l.attributes.locale] = { id: l.id, ...o };
+      // screenshot references (not the pixels)
+      const sets = await client.getAll(`/appStoreVersionLocalizations/${l.id}/appScreenshotSets`);
+      for (const s of sets) {
+        const shots = await client.getAll(`/appScreenshotSets/${s.id}/appScreenshots`);
+        if (shots.length)
+          snap.screenshots.push({
+            locale: l.attributes.locale,
+            displayType: s.attributes.screenshotDisplayType,
+            items: shots.map((x) => ({ id: x.id, fileName: x.attributes.fileName })),
+          });
+      }
+    }
+  }
+  return snap;
 }
 
 /** Cap parsed report rows so large reports don't flood the response. */
@@ -2065,6 +2080,180 @@ const tools = [
     },
   },
 
+  // ---- Diagnostics & snapshots ----
+  {
+    name: "doctor",
+    description:
+      "Diagnose the setup: Node version, credentials present, whether the API key works, role capabilities (metadata vs reports), Vendor Number, Mac build tools (Xcode/altool/agvtool), and the current safe-mode write settings. Read-only. Run this first if something isn't working.",
+    inputSchema: { type: "object", properties: {} },
+    run: async () => {
+      const checks = [];
+      const add = (name, status, detail) => checks.push({ name, status, detail });
+      // Node
+      const major = parseInt(process.versions.node.split(".")[0], 10);
+      add("Node.js", major >= 18 ? "pass" : "fail", `${process.version} (need ≥ 18)`);
+      // Credentials present
+      add("ASC_KEY_ID", process.env.ASC_KEY_ID ? "pass" : "fail", process.env.ASC_KEY_ID ? "set" : "missing");
+      add("ASC_ISSUER_ID", process.env.ASC_ISSUER_ID ? "pass" : "fail", process.env.ASC_ISSUER_ID ? "set" : "missing");
+      const keySrc = process.env.ASC_PRIVATE_KEY_PATH || process.env.ASC_PRIVATE_KEY || process.env.ASC_PRIVATE_KEY_BASE64;
+      add("Private key", keySrc ? "pass" : "fail", process.env.ASC_PRIVATE_KEY_PATH ? `path: ${process.env.ASC_PRIVATE_KEY_PATH}` : keySrc ? "inline/base64" : "missing");
+      // API key works (list 1 app)
+      try {
+        const apps = await client.getAll("/apps", { limit: 1 });
+        add("API key works", "pass", apps.length ? `e.g. ${apps[0].attributes.name}` : "authenticated (no apps)");
+      } catch (e) {
+        add("API key works", "fail", e.message.slice(0, 100));
+      }
+      // Report role probe: a real (tiny) sales report — 403 = key lacks the
+      // Admin/Finance/Sales role; success (data or empty) = it works.
+      if (process.env.ASC_VENDOR_NUMBER) {
+        const probeDate = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);
+        try {
+          await client.getReport("/salesReports", {
+            "filter[vendorNumber]": process.env.ASC_VENDOR_NUMBER,
+            "filter[frequency]": "DAILY",
+            "filter[reportType]": "SALES",
+            "filter[reportSubType]": "SUMMARY",
+            "filter[reportDate]": probeDate,
+            "filter[version]": "1_1",
+          });
+          add("Report/analytics role", "pass", "key can read sales/finance reports");
+        } catch (e) {
+          add("Report/analytics role", e.status === 403 ? "warn" : "info", e.status === 403 ? "key lacks Admin/Finance/Sales role (metadata still works)" : `probe inconclusive (${e.status || "?"})`);
+        }
+      } else {
+        add("Report/analytics role", "info", "set ASC_VENDOR_NUMBER to verify report access");
+      }
+      // Vendor number
+      add("Vendor number", process.env.ASC_VENDOR_NUMBER ? "pass" : "info", process.env.ASC_VENDOR_NUMBER ? "set" : "not set (needed for sales/finance)");
+      // Mac build tools
+      if (process.platform === "darwin") {
+        const sel = await runCmd("xcode-select", ["-p"]);
+        add("Xcode", sel.code === 0 ? "pass" : "warn", sel.code === 0 ? sel.stdout.trim() : "not found (needed only for build & ship)");
+        const at = await runCmd("xcrun", ["--find", "altool"]);
+        add("altool", at.code === 0 ? "pass" : "warn", at.code === 0 ? "available" : "not found");
+      } else {
+        add("Build tools", "info", `not on macOS (${process.platform}) — build & ship tools unavailable`);
+      }
+      // Write mode
+      const mode = writeModeSummary();
+      add("Write mode", mode.readOnly ? "info" : "pass", mode.readOnly ? "READ-ONLY (writes blocked)" : "writes allowed");
+      return {
+        summary: {
+          pass: checks.filter((c) => c.status === "pass").length,
+          warn: checks.filter((c) => c.status === "warn").length,
+          fail: checks.filter((c) => c.status === "fail").length,
+        },
+        safeMode: mode,
+        checks,
+      };
+    },
+  },
+  {
+    name: "snapshot_app_metadata",
+    description:
+      "Save a timestamped JSON snapshot of an app's editable TEXT metadata (name, subtitle, privacy policy, description, keywords, promo text, what's-new, URLs — across locales) plus screenshot references. Lets you diff/restore later. Returns the snapshot file path.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        label: { type: "string", description: "Optional label added to the filename" },
+      },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const snap = await collectAppMetadata(a.appId);
+      mkdirSync(SNAPSHOT_DIR, { recursive: true });
+      const stamp = snap.capturedAt.replace(/[:.]/g, "-");
+      const slug = (snap.bundleId || a.appId).replace(/[^\w.-]/g, "_");
+      const file = join(SNAPSHOT_DIR, `${slug}-${a.label ? a.label + "-" : ""}${stamp}.json`);
+      writeFileSync(file, JSON.stringify(snap, null, 2));
+      return {
+        file,
+        app: snap.name,
+        locales: {
+          appInfo: snap.appInfo ? Object.keys(snap.appInfo.localizations).length : 0,
+          version: snap.version ? Object.keys(snap.version.localizations).length : 0,
+        },
+        screenshotSets: snap.screenshots.length,
+        note: "Text metadata + screenshot references saved. Screenshot images themselves are not stored.",
+      };
+    },
+  },
+  {
+    name: "diff_app_metadata_snapshot",
+    description:
+      "Compare an app's CURRENT App Store metadata against a saved snapshot file (from snapshot_app_metadata). Shows what changed per locale/field. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        snapshotFile: { type: "string", description: "Path returned by snapshot_app_metadata" },
+      },
+      required: ["appId", "snapshotFile"],
+    },
+    run: async (a) => {
+      if (!existsSync(a.snapshotFile)) return { error: `Snapshot not found: ${a.snapshotFile}` };
+      const saved = JSON.parse(readFileSync(a.snapshotFile, "utf8"));
+      const current = await collectAppMetadata(a.appId);
+      const diffs = [];
+      const cmp = (scope, fields, savedLocs, curLocs) => {
+        for (const [locale, sv] of Object.entries(savedLocs || {})) {
+          const cv = (curLocs || {})[locale] || {};
+          for (const f of fields)
+            if ((sv[f] ?? null) !== (cv[f] ?? null))
+              diffs.push({ scope, locale, field: f, snapshot: sv[f] ?? null, current: cv[f] ?? null });
+        }
+      };
+      cmp("appInfo", APP_INFO_FIELDS, saved.appInfo?.localizations, current.appInfo?.localizations);
+      cmp("version", VERSION_LOC_FIELDS, saved.version?.localizations, current.version?.localizations);
+      return { app: current.name, snapshotCapturedAt: saved.capturedAt, changedFields: diffs.length, diffs };
+    },
+  },
+  {
+    name: "restore_app_metadata",
+    description:
+      "Restore an app's editable TEXT metadata from a saved snapshot (name/subtitle/privacy + description/keywords/etc., per locale). Screenshots are NOT restored. Set dryRun:true to preview. This WRITES to the live listing draft — confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        snapshotFile: { type: "string" },
+        dryRun: { type: "boolean" },
+      },
+      required: ["appId", "snapshotFile"],
+    },
+    run: async (a) => {
+      if (!existsSync(a.snapshotFile)) return { error: `Snapshot not found: ${a.snapshotFile}` };
+      const saved = JSON.parse(readFileSync(a.snapshotFile, "utf8"));
+      const current = await collectAppMetadata(a.appId);
+      const actions = [];
+      // app info localizations
+      for (const [locale, sv] of Object.entries(saved.appInfo?.localizations || {})) {
+        const cur = current.appInfo?.localizations?.[locale];
+        if (!cur) { actions.push({ scope: "appInfo", locale, skipped: "locale no longer present" }); continue; }
+        const attributes = {};
+        for (const f of APP_INFO_FIELDS) if ((sv[f] ?? null) !== (cur[f] ?? null) && sv[f] != null) attributes[f] = sv[f];
+        if (Object.keys(attributes).length) {
+          if (!a.dryRun) await client.patch(`/appInfoLocalizations/${cur.id}`, { data: { type: "appInfoLocalizations", id: cur.id, attributes } });
+          actions.push({ scope: "appInfo", locale, fields: Object.keys(attributes) });
+        }
+      }
+      // version localizations
+      for (const [locale, sv] of Object.entries(saved.version?.localizations || {})) {
+        const cur = current.version?.localizations?.[locale];
+        if (!cur) { actions.push({ scope: "version", locale, skipped: "locale no longer present" }); continue; }
+        const attributes = {};
+        for (const f of VERSION_LOC_FIELDS) if ((sv[f] ?? null) !== (cur[f] ?? null) && sv[f] != null) attributes[f] = sv[f];
+        if (Object.keys(attributes).length) {
+          if (!a.dryRun) await client.patch(`/appStoreVersionLocalizations/${cur.id}`, { data: { type: "appStoreVersionLocalizations", id: cur.id, attributes } });
+          actions.push({ scope: "version", locale, fields: Object.keys(attributes) });
+        }
+      }
+      return { dryRun: !!a.dryRun, app: current.name, restored: actions.length, actions };
+    },
+  },
+
   // ---- Recipes & aggregators (read-only) ----
   {
     name: "release_readiness_check",
@@ -2447,7 +2636,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.9.1" },
+  { name: "appstore-api-mcp", version: "1.10.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 
@@ -2462,6 +2651,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const tool = toolMap[req.params.name];
   if (!tool) return fail(new Error(`Unknown tool: ${req.params.name}`));
+  // Safe-mode guardrails: block writes that the environment disallows.
+  const blocked = writeBlockReason(req.params.name, req.params.arguments || {});
+  if (blocked) return fail(new Error(blocked));
   try {
     const result = await tool.run(req.params.arguments || {});
     // Tools may return raw MCP content (e.g. images) via __mcpContent.

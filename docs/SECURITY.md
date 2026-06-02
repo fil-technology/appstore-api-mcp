@@ -10,6 +10,19 @@ Depending on the role you assign, the key can edit metadata and keywords, upload
 screenshots, manage TestFlight, change pricing, respond to reviews, and download
 sales/finance data. Scope it down.
 
+## Safe mode (tool-level write guardrails)
+
+Beyond least-privilege keys, the server can **refuse** writes regardless of what
+an agent tries. Set env vars to enforce it:
+
+- `APPSTORE_MCP_READ_ONLY=true` — blocks every write (great for demos, audits, CI).
+- `APPSTORE_MCP_ALLOW_RELEASE=false`, `..._ALLOW_PRICE_CHANGES=false`,
+  `..._ALLOW_REVIEW_REPLIES=false`, `..._ALLOW_EXTERNAL_TESTFLIGHT=false` — block
+  individual high-impact categories.
+
+Blocked calls return a clear error. This turns "the agent should ask" into "the
+tool cannot do it." Run `doctor` to see the active mode.
+
 ## Principle of least privilege
 
 - Create a **dedicated key** just for this server — don't reuse one.

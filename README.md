@@ -216,6 +216,22 @@ All configuration is via environment variables.
 
 See [.env.example](.env.example) for a copy-paste template.
 
+### 🛡️ Safe mode (optional, recommended for shared/CI setups)
+
+Tool-level guardrails — enforced by the server, not "please ask the agent." Set
+any of these env vars to lock things down:
+
+| Variable | Effect |
+| --- | --- |
+| `APPSTORE_MCP_READ_ONLY=true` | **Blocks every write** — only reads/reports/audits run |
+| `APPSTORE_MCP_ALLOW_RELEASE=false` | Blocks `release_version` / `set_phased_release` |
+| `APPSTORE_MCP_ALLOW_PRICE_CHANGES=false` | Blocks `set_app_price` |
+| `APPSTORE_MCP_ALLOW_REVIEW_REPLIES=false` | Blocks posting public review replies |
+| `APPSTORE_MCP_ALLOW_EXTERNAL_TESTFLIGHT=false` | Blocks `submit_beta_review` |
+
+Blocked calls return a clear error explaining which flag to change. Run the
+**`doctor`** tool to see the active mode and verify your whole setup.
+
 > **Reports need a higher-privilege key.** The sales/subscription/finance/analytics
 > tools require an API key with the **Admin, Finance, or Sales** role — an **App
 > Manager** key (fine for metadata/keywords/screenshots) returns `403` for reports.
@@ -245,6 +261,8 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | `audit_apps` | 🩺 **Fleet ASO audit** — scan all apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots. Read-only |
 | `apps_review_status` | 🗂️ **Fleet review board** — every app's current version + state (waiting / in-review / rejected / ready) in one call |
 | `submit_for_review` / `release_version` / `set_phased_release` | 🚀 Submit a version to Apple review (full flow), release an approved build, and control phased rollout |
+| `doctor` | 🩺 Diagnose setup: Node, creds, key works, role capabilities, vendor number, Mac build tools, write mode |
+| `snapshot_app_metadata` / `diff_app_metadata_snapshot` / `restore_app_metadata` | 💾 Save / compare / restore an app's text metadata — reversible ASO edits |
 | `release_readiness_check` | ✅ One-call **go/no-go report** — build, metadata, ASO, screenshots, compliance, TestFlight, reviews |
 | `aso_opportunity_report` / `portfolio_growth_report` | 📈 Rank the easiest **ASO wins** across all apps; portfolio snapshot of units sold per app |
 | `add_build_to_beta_group` / `submit_beta_review` | ✈️ Assign a build to a TestFlight group; submit for beta review |

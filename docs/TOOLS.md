@@ -389,6 +389,40 @@ Lists certificates and provisioning profiles, flagging expired/expiring (within
 ### list_game_center_leaderboards / list_game_center_achievements
 - `appId` **(required)** — requires Game Center enabled on the app.
 
+## Diagnostics & snapshots
+
+### doctor
+No args. Read-only setup check: Node version, credentials, whether the API key
+works, report-role capability, Vendor Number, Mac build tools, and the active
+safe-mode write settings. Run this first when something isn't working.
+
+### snapshot_app_metadata
+Save a timestamped JSON snapshot of an app's editable **text** metadata (name,
+subtitle, privacy, description, keywords, promo, what's-new, URLs, per locale) +
+screenshot references. Screenshot images aren't stored.
+- `appId` **(required)**, `label` (optional) — returns the snapshot file path.
+
+### diff_app_metadata_snapshot
+- `appId` **(required)**, `snapshotFile` **(required)** — current vs snapshot diff.
+
+### restore_app_metadata
+Restore text metadata from a snapshot (writes to the listing draft). Screenshots
+not restored. `dryRun` to preview.
+- `appId` **(required)**, `snapshotFile` **(required)**, `dryRun`
+
+## Safe mode (guardrails)
+
+Set these env vars to enforce limits at the **server** (blocked calls return a
+clear error):
+
+| Variable | Effect |
+| --- | --- |
+| `APPSTORE_MCP_READ_ONLY=true` | block all writes |
+| `APPSTORE_MCP_ALLOW_RELEASE=false` | block `release_version` / `set_phased_release` |
+| `APPSTORE_MCP_ALLOW_PRICE_CHANGES=false` | block `set_app_price` |
+| `APPSTORE_MCP_ALLOW_REVIEW_REPLIES=false` | block public review replies |
+| `APPSTORE_MCP_ALLOW_EXTERNAL_TESTFLIGHT=false` | block `submit_beta_review` |
+
 ## Recipes & aggregators (read-only)
 
 ### release_readiness_check

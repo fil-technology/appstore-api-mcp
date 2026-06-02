@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-06-02
+
+### Added
+- **Safe mode (tool-level guardrails):** `APPSTORE_MCP_READ_ONLY` plus per-category
+  `APPSTORE_MCP_ALLOW_RELEASE` / `_PRICE_CHANGES` / `_REVIEW_REPLIES` /
+  `_EXTERNAL_TESTFLIGHT`. Blocked writes return a clear error — enforced by the
+  server, not just the agent.
+- **`doctor`** — diagnose Node, credentials, key validity, report-role capability,
+  Vendor Number, Mac build tools, and the active write mode.
+- **Metadata snapshots:** `snapshot_app_metadata`, `diff_app_metadata_snapshot`,
+  `restore_app_metadata` (text metadata; reversible ASO edits).
+- **Test suite** (`npm test`, `node:test`): validation, guardrails, gzip/TSV
+  parsing, and 429-retry — locking in the safety guarantees.
+- Docs: golden-output example for the readiness check, an ASO-tool-CSV recipe,
+  and a Safe-mode section in README/SECURITY.
+
+### Changed
+- Extracted `src/validation.js` and `src/guardrails.js` (unit-tested modules).
+
 ## [1.9.1] - 2026-06-02
 
 ### Added

@@ -35,6 +35,21 @@ blockers first.
 
 Uses: `release_readiness_check` (single call), or the individual tools.
 
+<details><summary>Example output (fake data)</summary>
+
+| Area | Status | Detail |
+| --- | --- | --- |
+| Build | pass | latest v42 — VALID |
+| Description | pass | present |
+| Keywords | warn | 61/100 chars |
+| Screenshots | fail | none on the 6.7″ set |
+| Subtitle | warn | missing (free ASO keywords) |
+| Privacy policy | pass | set |
+| Reviews | warn | 3 recent 1–2★ reviews |
+
+**Verdict:** *Not ready* — 1 blocker (screenshots). 3 warnings worth fixing.
+</details>
+
 ## 3. Release train — with approval gates
 
 ```text
@@ -103,6 +118,17 @@ en-AU that use each store's keyword field for *additional* terms (a known ASO
 trick — extra locales add searchable keywords). Dry-run a bulk localization update
 across those locales and show me the diff first.
 ```
+
+**d) From an ASO-tool CSV export** (Appfigures / Sensor Tower / AppTweak / etc.)
+```text
+Here's a keyword CSV export [paste or attach]. Pick the highest-volume, on-topic
+terms that fit AppName's 100-char keyword field without duplicating the title or
+subtitle, and dry-run the new keyword field for my approval.
+```
+
+> The App Store Connect API has **no** competitor/keyword-volume data — bring your
+> own (web search, public App Store pages, or an ASO tool export). This MCP keeps
+> the *apply* side safe (read current → dry-run → write on approval).
 
 Uses: `get_app_store_version_localization`, `list_app_info_localizations`,
 `update_app_store_version_localization` (with `dryRun`),
