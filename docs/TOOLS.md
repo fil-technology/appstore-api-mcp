@@ -266,6 +266,52 @@ Download + decompress + parse an instance's segments into rows.
 
 ---
 
+## Customer reviews
+
+### list_customer_reviews
+- `appId` **(required)**
+- `rating` — filter to a star rating 1–5
+- `territory` — 3-letter code, e.g. `USA`, `GBR`
+- `sort` — `-createdDate` (default), `createdDate`, `rating`, `-rating`
+- `limit` — max reviews (default 50)
+- **Returns:** reviews with `rating`, `title`, `body`, `reviewerNickname`, `createdDate`, `territory`, and `hasResponse`.
+
+### reply_to_customer_review
+Posts a **public** reply (confirm the text with the user first).
+- `reviewId` **(required)**
+- `responseBody` **(required)** — max ~5970 chars
+
+## TestFlight
+
+### list_builds
+- `appId` **(required)**, `limit` (default 25) — newest first: `version`, `processingState`, upload/expiration dates, min OS.
+
+### list_beta_groups
+- `appId` **(required)** — group `name`, internal/external, public-link status.
+
+### list_beta_testers
+- `appId` **or** `betaGroupId` **(one required)**, `limit` (default 100).
+
+### add_beta_tester
+Invites a tester by email (emails a real person — confirm first).
+- `betaGroupId` **(required)**, `email` **(required)**, `firstName`, `lastName`
+
+## Catalog, pricing & availability
+
+### list_in_app_purchases
+- `appId` **(required)** — `name`, `productId`, type, `state`.
+
+### get_app_price_schedule
+- `appId` **(required)** — base territory + manual price points (raw schedule for inspection).
+
+### list_available_territories
+- `appId` **(required)**, `limit` (default 200) — `{ count, territories: [{ territory, available, releaseDate }] }`.
+
+### get_age_rating
+- `appId` **(required)** — the app's age-rating declaration (content descriptors).
+
+---
+
 ## Raw API access
 
 ### `raw_request`

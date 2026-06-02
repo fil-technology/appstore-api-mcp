@@ -1081,6 +1081,262 @@ const tools = [
     },
   },
 
+  // ---- Customer reviews ----
+  {
+    name: "list_customer_reviews",
+    description:
+      "List customer reviews for an app. Filter by rating (1–5) and/or territory (3-letter code, e.g. USA, GBR). Sorted newest-first by default. Each review includes whether you've already responded.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        rating: { type: "number", description: "Filter to a star rating 1–5" },
+        territory: { type: "string", description: "3-letter territory code, e.g. USA" },
+        sort: {
+          type: "string",
+          description: "'-createdDate' (default, newest first), 'createdDate', 'rating', '-rating'",
+        },
+        limit: { type: "number", description: "Max reviews (default 50)" },
+      },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const query = {
+        sort: a.sort || "-createdDate",
+        limit: a.limit ?? 50,
+        include: "response",
+      };
+      if (a.rating !== undefined) query["filter[rating]"] = a.rating;
+      if (a.territory) query["filter[territory]"] = a.territory;
+      const data = await client.getAll(
+        `/apps/${a.appId}/customerReviews`,
+        query,
+      );
+      return data.map((x) => ({
+        id: x.id,
+        ...x.attributes,
+        hasResponse: !!(x.relationships?.response?.data),
+      }));
+    },
+  },
+  {
+    name: "reply_to_customer_review",
+    description:
+      "Publicly reply to a customer review. NOTE: this publishes a response visible on the App Store — confirm the text with the user first. responseBody max ~5970 chars.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        reviewId: { type: "string" },
+        responseBody: { type: "string" },
+      },
+      required: ["reviewId", "responseBody"],
+    },
+    run: async (a) =>
+      client.post("/customerReviewResponses", {
+        data: {
+          type: "customerReviewResponses",
+          attributes: { responseBody: a.responseBody },
+          relationships: {
+            review: { data: { type: "customerReviews", id: a.reviewId } },
+          },
+        },
+      }),
+  },
+
+  // ---- TestFlight ----
+  {
+    name: "list_builds",
+    description:
+      "List TestFlight builds for an app (newest first): version, upload/expiration dates, processing state, min OS.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        limit: { type: "number", description: "Max builds (default 25)" },
+      },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      // The /builds collection supports sort; the app relationship does not.
+      const data = await client.getAll(`/builds`, {
+        "filter[app]": a.appId,
+        sort: "-version",
+        limit: a.limit ?? 25,
+      });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "list_beta_groups",
+    description:
+      "List TestFlight beta groups for an app (internal/external, public-link status).",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const data = await client.getAll(`/apps/${a.appId}/betaGroups`);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "list_beta_testers",
+    description:
+      "List TestFlight beta testers — either for a whole app (pass appId) or a specific group (pass betaGroupId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        betaGroupId: { type: "string" },
+        limit: { type: "number", description: "Max testers (default 100)" },
+      },
+    },
+    run: async (a) => {
+      let data;
+      if (a.betaGroupId)
+        data = await client.getAll(
+          `/betaGroups/${a.betaGroupId}/betaTesters`,
+          { limit: a.limit ?? 100 },
+        );
+      else if (a.appId)
+        data = await client.getAll(`/betaTesters`, {
+          "filter[apps]": a.appId,
+          limit: a.limit ?? 100,
+        });
+      else throw new Error("Provide appId or betaGroupId.");
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "add_beta_tester",
+    description:
+      "Add a beta tester to a TestFlight group by email (sends them an invite). NOTE: this emails a real person — confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        betaGroupId: { type: "string" },
+        email: { type: "string" },
+        firstName: { type: "string" },
+        lastName: { type: "string" },
+      },
+      required: ["betaGroupId", "email"],
+    },
+    run: async (a) => {
+      const attributes = { email: a.email };
+      if (a.firstName) attributes.firstName = a.firstName;
+      if (a.lastName) attributes.lastName = a.lastName;
+      return client.post("/betaTesters", {
+        data: {
+          type: "betaTesters",
+          attributes,
+          relationships: {
+            betaGroups: { data: [{ type: "betaGroups", id: a.betaGroupId }] },
+          },
+        },
+      });
+    },
+  },
+
+  // ---- Catalog, pricing & availability ----
+  {
+    name: "list_in_app_purchases",
+    description:
+      "List the in-app purchase products for an app (name, product id, type, state).",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const data = await client.getAll(`/apps/${a.appId}/inAppPurchasesV2`);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "list_available_territories",
+    description:
+      "List the territories (countries/regions) where an app is available. Returns territory codes and currencies.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        limit: { type: "number", description: "Max territories (default 200)" },
+      },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      // v2 availability model: app → appAvailabilityV2 → territoryAvailabilities.
+      // Follow the relationship's own related link (it points at the /v2 API).
+      const av = await client.get(`/apps/${a.appId}/appAvailabilityV2`);
+      const related =
+        av.data?.relationships?.territoryAvailabilities?.links?.related;
+      if (!related) return { note: "No availability record for this app." };
+      // Apple caps page size at 200; getAll paginates to cover the rest.
+      const data = await client.getAll(related, {
+        limit: Math.min(a.limit ?? 200, 200),
+      });
+      const territories = data
+        .map((x) => {
+          // The territory code is base64-encoded JSON in the item id: {"s":appId,"t":"USA"}.
+          let territory = null;
+          try {
+            territory = JSON.parse(
+              Buffer.from(x.id, "base64").toString("utf8"),
+            ).t;
+          } catch {
+            /* ignore */
+          }
+          return {
+            territory,
+            available: x.attributes?.available,
+            releaseDate: x.attributes?.releaseDate,
+          };
+        })
+        .filter((x) => x.territory);
+      return {
+        availableInNewTerritories: av.data?.attributes?.availableInNewTerritories,
+        count: territories.length,
+        territories,
+      };
+    },
+  },
+  {
+    name: "get_age_rating",
+    description:
+      "Get an app's age-rating declaration (the content descriptors that determine its age rating).",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const res = await client.get(`/apps/${a.appId}/appInfos`, {
+        include: "ageRatingDeclaration",
+        limit: 1,
+      });
+      const decl = (res.included || []).find(
+        (x) => x.type === "ageRatingDeclarations",
+      );
+      return decl ? { id: decl.id, ...decl.attributes } : { note: "No age-rating declaration found." };
+    },
+  },
+  {
+    name: "get_app_price_schedule",
+    description:
+      "Get an app's price schedule (base territory + manual price points). Pricing in the App Store Connect API is multi-step; this returns the schedule with its included prices for inspection.",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) =>
+      client.get(`/apps/${a.appId}/appPriceSchedule`, {
+        include: "baseTerritory,manualPrices",
+        "limit[manualPrices]": 50,
+      }),
+  },
+
   // ---- Generic escape hatch ----
   {
     name: "raw_request",

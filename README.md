@@ -247,7 +247,10 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | 🚀 `audit_apps` | **Fleet health check** — scan all (or selected) apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots, and more. Read-only. |
 | 📊 `get_sales_report` / `get_subscription_report` / `get_finance_report` | Units/downloads, proceeds, **subscriptions & retention**, earnings by region (parsed rows). Needs a Vendor Number + a key with Admin/Finance/Sales role. |
 | 📈 `request_analytics_report` → `list_analytics_reports` → `list_analytics_report_instances` → `get_analytics_report_data` | The async Analytics Reports API — downloads, sessions, active devices, App Store engagement. |
-| `raw_request` | Any method/path against the API — previews, pricing, TestFlight, IAP, reviews, … |
+| ⭐ `list_customer_reviews` / `reply_to_customer_review` | Read reviews (filter by rating/territory, shows if you've replied) and post public replies. |
+| ✈️ `list_builds` / `list_beta_groups` / `list_beta_testers` / `add_beta_tester` | TestFlight — builds, beta groups, testers, and inviting testers. |
+| 🛒 `list_in_app_purchases` / `get_app_price_schedule` / `list_available_territories` / `get_age_rating` | Catalog, pricing, territory availability, and age-rating. |
+| `raw_request` | Any method/path against the API — app previews, sales/finance edge cases, anything not above. |
 
 > 🛡️ **Dry-run:** the `update_*` tools accept `dryRun: true` — they return a field-by-field
 > diff (old → new) with length/limit checks and **write nothing**. Drop the flag to apply.
@@ -275,12 +278,11 @@ Once it's connected, just talk to your agent in plain language. A few things to 
 - *"List my latest TestFlight builds and which beta groups can see them."*
 - *"What's <app>'s price and which territories is it available in?"*
 
-> **Capability tiers:** App management, localization, screenshots (incl. *seeing*
-> them), sales/subscriptions/analytics, the ASO audit, and dry-run are **dedicated
-> tools**. Customer reviews, pricing, availability, TestFlight, in-app purchases,
-> and category/age-rating are reachable through the **`raw_request`** escape hatch
-> (the whole App Store Connect API) — ask for them the same way and the agent will
-> call the right endpoint.
+> **Dedicated tools cover it all:** app management, localization, screenshots
+> (incl. *seeing* them), sales/subscriptions/analytics, ASO audit, dry-run,
+> **customer reviews, TestFlight, in-app purchases, pricing, availability, and
+> age-rating**. Anything else in the App Store Connect API is still reachable
+> through the **`raw_request`** escape hatch — just ask.
 
 ## Common workflows
 

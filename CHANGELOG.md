@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-06-02
+
+### Added
+- Promoted popular App Store Connect capabilities from `raw_request` to dedicated tools:
+  - **Customer reviews:** `list_customer_reviews` (filter by rating/territory, shows reply status) + `reply_to_customer_review`.
+  - **TestFlight:** `list_builds`, `list_beta_groups`, `list_beta_testers`, `add_beta_tester`.
+  - **Catalog/pricing/availability:** `list_in_app_purchases`, `get_app_price_schedule`, `list_available_territories`, `get_age_rating`.
+- All read tools validated end-to-end against a live account (reviews, builds, groups, testers, IAPs, 175 territories, age rating).
+
 ## [1.2.0] - 2026-06-02
 
 ### Added
