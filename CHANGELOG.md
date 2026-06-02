@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-06-02
+
+### Added
+- **`release_readiness_check`** — one-call go/no-go report (build, metadata, ASO,
+  screenshots, compliance, TestFlight, reviews).
+- **`aso_opportunity_report`** — ranked easiest ASO wins across apps.
+- **`portfolio_growth_report`** — units sold per app from a Sales report.
+- **TestFlight actions:** `add_build_to_beta_group`, `submit_beta_review`.
+- **`docs/RECIPES.md`** — copy-paste workflow prompts (prepare-version,
+  release-train-with-gates, readiness check, reviews→notes, portfolio operator,
+  build & ship), linked from the README.
+
 ## [1.8.1] - 2026-06-02
 
 ### Changed

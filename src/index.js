@@ -2065,6 +2065,206 @@ const tools = [
     },
   },
 
+  // ---- Recipes & aggregators (read-only) ----
+  {
+    name: "release_readiness_check",
+    description:
+      "A go/no-go readiness report for an app: latest build state, listing metadata completeness, ASO (subtitle, keyword usage), screenshots, compliance (privacy policy), TestFlight groups, and recent low-star reviews. Read-only — writes nothing. Great before submitting.",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const checks = [];
+      const add = (area, status, detail) => checks.push({ area, status, detail });
+      const app = await client.get(`/apps/${a.appId}`);
+      const primaryLocale = app.data.attributes.primaryLocale;
+      try {
+        const builds = await client.getAll(`/builds`, { "filter[app]": a.appId, sort: "-version", limit: 1 });
+        if (builds.length) {
+          const b = builds[0].attributes;
+          add("Build", b.processingState === "VALID" ? "pass" : "warn", `latest v${b.version} — ${b.processingState}`);
+        } else add("Build", "warn", "no builds uploaded");
+      } catch (e) { add("Build", "warn", e.message.slice(0, 60)); }
+
+      const versions = await client.getAll(`/apps/${a.appId}/appStoreVersions`, { limit: 5 });
+      const ed = versions.find((v) => EDITABLE_VERSION_STATES.has(v.attributes.appStoreState)) || versions[0];
+      add("Version", ed ? "info" : "warn", ed ? `v${ed.attributes.versionString} — ${ed.attributes.appStoreState}` : "no version");
+      if (ed) {
+        const locs = await client.getAll(`/appStoreVersions/${ed.id}/appStoreVersionLocalizations`);
+        const loc = locs.find((l) => l.attributes.locale === primaryLocale) || locs[0];
+        const at = (loc && loc.attributes) || {};
+        add("Description", at.description ? "pass" : "fail", at.description ? "present" : "missing");
+        const kw = (at.keywords || "").trim();
+        add("Keywords", kw ? (kw.length >= 70 ? "pass" : "warn") : "fail", kw ? `${kw.length}/100 chars` : "empty");
+        add("What's New", at.whatsNew ? "pass" : "warn", at.whatsNew ? "present" : "missing");
+        add("Support URL", at.supportUrl ? "pass" : "warn", at.supportUrl ? "set" : "missing");
+        if (loc) {
+          let shots = 0;
+          const sets = await client.getAll(`/appStoreVersionLocalizations/${loc.id}/appScreenshotSets`);
+          for (const s of sets) shots += (await client.getAll(`/appScreenshotSets/${s.id}/appScreenshots`)).length;
+          add("Screenshots", shots > 0 ? "pass" : "fail", `${shots} on ${loc.attributes.locale}`);
+        }
+      }
+      try {
+        const infos = await client.getAll(`/apps/${a.appId}/appInfos`);
+        if (infos.length) {
+          const il = await client.getAll(`/appInfos/${infos[0].id}/appInfoLocalizations`);
+          const ilc = il.find((x) => x.attributes.locale === primaryLocale) || il[0];
+          add("Subtitle", ilc?.attributes?.subtitle ? "pass" : "warn", ilc?.attributes?.subtitle ? "present" : "missing (free ASO keywords)");
+          add("Privacy policy", ilc?.attributes?.privacyPolicyUrl ? "pass" : "warn", ilc?.attributes?.privacyPolicyUrl ? "set" : "missing");
+        }
+      } catch { /* ignore */ }
+      try {
+        const groups = await client.getAll(`/apps/${a.appId}/betaGroups`);
+        add("TestFlight", groups.length ? "pass" : "info", `${groups.length} beta group(s)`);
+      } catch { /* ignore */ }
+      try {
+        const reviews = await client.getAll(`/apps/${a.appId}/customerReviews`, { sort: "-createdDate", limit: 50 });
+        const low = reviews.filter((r) => (r.attributes.rating ?? 5) <= 2).length;
+        add("Reviews", low > 0 ? "warn" : "pass", `${low} recent 1-2 star review(s)`);
+      } catch { /* may need higher role */ }
+
+      const summary = {
+        pass: checks.filter((c) => c.status === "pass").length,
+        warn: checks.filter((c) => c.status === "warn").length,
+        fail: checks.filter((c) => c.status === "fail").length,
+      };
+      const ready = summary.fail === 0;
+      return {
+        app: app.data.attributes.name,
+        ready,
+        verdict: ready ? (summary.warn ? "Ready (with warnings)" : "Ready") : "Not ready — has blocking gaps",
+        summary,
+        checks,
+      };
+    },
+  },
+  {
+    name: "aso_opportunity_report",
+    description:
+      "Rank the easiest ASO wins across your apps (or given appIds): missing subtitle, empty/under-used keyword field, single-locale listings — each with a suggested fix and rough effort. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appIds: { type: "array", items: { type: "string" } },
+        limit: { type: "number", description: "Max apps to scan (default all)" },
+      },
+    },
+    run: async (a) => {
+      let apps = await client.getAll("/apps", { limit: 200 });
+      if (a.appIds?.length) apps = apps.filter((x) => a.appIds.includes(x.id));
+      if (a.limit) apps = apps.slice(0, a.limit);
+      const wins = [];
+      await mapLimit(apps, 6, async (app) => {
+        try {
+          const primaryLocale = app.attributes.primaryLocale;
+          const infos = await client.getAll(`/apps/${app.id}/appInfos`);
+          let subtitle = null;
+          if (infos.length) {
+            const il = await client.getAll(`/appInfos/${infos[0].id}/appInfoLocalizations`);
+            const ilc = il.find((x) => x.attributes.locale === primaryLocale) || il[0];
+            subtitle = ilc?.attributes?.subtitle;
+          }
+          const versions = await client.getAll(`/apps/${app.id}/appStoreVersions`, { limit: 5 });
+          const ed = versions.find((v) => EDITABLE_VERSION_STATES.has(v.attributes.appStoreState)) || versions[0];
+          if (!ed) return;
+          const locs = await client.getAll(`/appStoreVersions/${ed.id}/appStoreVersionLocalizations`);
+          const loc = locs.find((l) => l.attributes.locale === primaryLocale) || locs[0];
+          const kw = (loc?.attributes?.keywords || "").trim();
+          const name = app.attributes.name;
+          if (!subtitle) wins.push({ app: name, appId: app.id, issue: "no subtitle", fix: "write 3 subtitle options (<=30 chars)", effort: "low", score: 3 });
+          if (!kw) wins.push({ app: name, appId: app.id, issue: "empty keyword field", fix: "add researched keywords (up to 100 chars)", effort: "low", score: 3 });
+          else if (kw.length < 70) wins.push({ app: name, appId: app.id, issue: `keyword field ${kw.length}/100 chars`, fix: `add ~${Math.max(1, Math.round((100 - kw.length) / 12))} more terms`, effort: "low", score: 2 });
+          if (locs.length <= 1) wins.push({ app: name, appId: app.id, issue: "only one locale", fix: "add en-GB / en-CA or a major market", effort: "medium", score: 2 });
+        } catch { /* skip */ }
+      });
+      wins.sort((x, y) => y.score - x.score);
+      return { appsScanned: apps.length, opportunities: wins.length, top: wins.slice(0, a.limit || 25) };
+    },
+  },
+  {
+    name: "portfolio_growth_report",
+    description:
+      "Portfolio snapshot: recent units sold per app (aggregated from a Sales & Trends report). Needs a Vendor Number + report-capable key. Read-only. reportDate format depends on frequency (DAILY/WEEKLY = YYYY-MM-DD).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        reportDate: { type: "string", description: "DAILY=YYYY-MM-DD, MONTHLY=YYYY-MM. WEEKLY needs a week-ending Sunday." },
+        frequency: { type: "string", description: "DAILY (default), WEEKLY, MONTHLY" },
+      },
+      required: ["reportDate"],
+    },
+    run: async (a) => {
+      const vendor = requireVendor();
+      const text = await client.getReport("/salesReports", {
+        "filter[vendorNumber]": vendor,
+        "filter[frequency]": a.frequency || "DAILY",
+        "filter[reportType]": "SALES",
+        "filter[reportSubType]": "SUMMARY",
+        "filter[reportDate]": a.reportDate,
+        "filter[version]": "1_1",
+      });
+      const parsed = AppStoreConnectClient.parseDelimited(text, "\t");
+      const byApp = {};
+      for (const r of parsed.rows) {
+        const title = r["Title"] || r["SKU"];
+        if (!title) continue;
+        const units = parseInt(r["Units"] || "0", 10) || 0;
+        byApp[title] = byApp[title] || { app: title, units: 0 };
+        byApp[title].units += units;
+      }
+      const rows = Object.values(byApp).sort((x, y) => y.units - x.units);
+      return {
+        reportDate: a.reportDate,
+        frequency: a.frequency || "DAILY",
+        appsWithSales: rows.length,
+        totalUnits: rows.reduce((s, x) => s + x.units, 0),
+        topApps: rows.slice(0, 50),
+        note: "Units summed across territories. Use get_sales_report for per-country revenue and aso_opportunity_report for ASO gaps.",
+      };
+    },
+  },
+
+  // ---- TestFlight actions ----
+  {
+    name: "add_build_to_beta_group",
+    description:
+      "Add a processed build to a TestFlight beta group so its testers can install it. NOTE: for external groups this can notify testers — confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        betaGroupId: { type: "string" },
+        buildId: { type: "string" },
+      },
+      required: ["betaGroupId", "buildId"],
+    },
+    run: async (a) => {
+      await client.post(`/betaGroups/${a.betaGroupId}/relationships/builds`, {
+        data: [{ type: "builds", id: a.buildId }],
+      });
+      return { added: a.buildId, toGroup: a.betaGroupId };
+    },
+  },
+  {
+    name: "submit_beta_review",
+    description:
+      "Submit a build for TestFlight (external) beta review. NOTE: sends the build to Apple's beta review — confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: { buildId: { type: "string" } },
+      required: ["buildId"],
+    },
+    run: async (a) =>
+      client.post(`/betaAppReviewSubmissions`, {
+        data: {
+          type: "betaAppReviewSubmissions",
+          relationships: { build: { data: { type: "builds", id: a.buildId } } },
+        },
+      }),
+  },
+
   // ---- Local build: archive & upload (macOS + Xcode) ----
   {
     name: "bump_build_number",
@@ -2247,7 +2447,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.8.1" },
+  { name: "appstore-api-mcp", version: "1.9.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

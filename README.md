@@ -50,7 +50,7 @@ whatever AI agent you already use.
 - [Getting your API key](#getting-your-api-key) → full guide in [docs/SETUP.md](docs/SETUP.md)
 - [Configuration](#configuration)
 - [Tools](#tools) → full reference in [docs/TOOLS.md](docs/TOOLS.md)
-- [What you can ask](#what-you-can-ask)
+- [What you can ask](#what-you-can-ask) — ready-made prompts in [docs/RECIPES.md](docs/RECIPES.md)
 - [Analytics & reports setup](docs/ANALYTICS.md) — roles, Vendor Number, examples
 - [Common workflows](#common-workflows)
 - [Security](#security) → details in [docs/SECURITY.md](docs/SECURITY.md)
@@ -245,6 +245,9 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | `audit_apps` | 🩺 **Fleet ASO audit** — scan all apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots. Read-only |
 | `apps_review_status` | 🗂️ **Fleet review board** — every app's current version + state (waiting / in-review / rejected / ready) in one call |
 | `submit_for_review` / `release_version` / `set_phased_release` | 🚀 Submit a version to Apple review (full flow), release an approved build, and control phased rollout |
+| `release_readiness_check` | ✅ One-call **go/no-go report** — build, metadata, ASO, screenshots, compliance, TestFlight, reviews |
+| `aso_opportunity_report` / `portfolio_growth_report` | 📈 Rank the easiest **ASO wins** across all apps; portfolio snapshot of units sold per app |
+| `add_build_to_beta_group` / `submit_beta_review` | ✈️ Assign a build to a TestFlight group; submit for beta review |
 | `get_sales_report` / `get_subscription_report` / `get_finance_report` | 📊 Units/downloads, proceeds, **subscriptions & retention**, earnings by region. Needs a Vendor Number + Admin/Finance/Sales key |
 | `request_analytics_report` → `list_analytics_reports` → `list_analytics_report_instances` → `get_analytics_report_data` | 📈 The async Analytics Reports API — downloads, sessions, active devices, App Store engagement |
 | `list_customer_reviews` / `reply_to_customer_review` | ⭐ Read reviews (filter by rating/territory, shows if you've replied) and post public replies |

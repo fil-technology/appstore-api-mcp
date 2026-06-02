@@ -389,6 +389,28 @@ Lists certificates and provisioning profiles, flagging expired/expiring (within
 ### list_game_center_leaderboards / list_game_center_achievements
 - `appId` **(required)** — requires Game Center enabled on the app.
 
+## Recipes & aggregators (read-only)
+
+### release_readiness_check
+- `appId` **(required)** — returns `{ app, ready, verdict, summary, checks[] }` (each check has `area`, `status` pass/warn/fail/info, `detail`).
+
+### aso_opportunity_report
+- `appIds` (default all), `limit` — ranked `{ app, issue, fix, effort }` wins.
+
+### portfolio_growth_report
+- `reportDate` **(required)**, `frequency` (DAILY default) — units sold per app from a Sales report. Needs a Vendor Number + report-capable key.
+
+## TestFlight actions
+
+### add_build_to_beta_group
+- `betaGroupId` **(required)**, `buildId` **(required)** — makes the build available to that group's testers.
+
+### submit_beta_review
+- `buildId` **(required)** — submit for TestFlight external beta review.
+
+> See **[RECIPES.md](RECIPES.md)** for copy-paste prompts that chain these into
+> workflows (prepare-version, release-train-with-gates, review→notes, portfolio audit).
+
 ## Build & ship (macOS + Xcode)
 
 These run local Xcode tooling, so they only work on a Mac with Xcode installed.
