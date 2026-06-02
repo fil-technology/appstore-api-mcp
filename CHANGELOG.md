@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-06-02
+
+### Added
+- **`apps_review_status`** — fleet review-status board: every app's current
+  version + state (waiting/in-review/rejected/ready) in one call, with a summary.
+- **`submit_for_review`** — full submit flow (create submission → add version →
+  submit) and **`release_version`** for manually releasing an approved build.
+- **`signing_health`** — flags certificates & provisioning profiles that are
+  expired/expiring (within `withinDays`) or invalid, across the account.
+- **`update_in_app_purchase`** — edit an IAP's reference name / review note.
+
 ## [1.4.0] - 2026-06-02
 
 ### Added

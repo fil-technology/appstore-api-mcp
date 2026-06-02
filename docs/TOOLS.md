@@ -310,6 +310,34 @@ Invites a tester by email (emails a real person — confirm first).
 ### get_age_rating
 - `appId` **(required)** — the app's age-rating declaration (content descriptors).
 
+## Submission, release & fleet status
+
+### apps_review_status
+Fleet review-status board across all (or selected) apps. Read-only.
+- `appIds` — limit to these apps; `platform`; `limit`
+- **Returns:** `{ summary: { apps, byState }, apps: [{ name, version, state, platform }] }`
+
+### submit_for_review
+Submits a version to Apple review (create submission → add version → submit).
+**Sends the app to review — confirm first.**
+- `appId` **(required)**, `versionId` **(required)**, `platform` (default IOS)
+
+### release_version
+Release an approved version waiting for manual release (PENDING_DEVELOPER_RELEASE).
+**Makes it live — confirm first.**
+- `versionId` **(required)**
+
+### update_in_app_purchase
+- `inAppPurchaseId` **(required)**, `name`, `reviewNote`
+
+## Code-signing health
+
+### signing_health
+Lists certificates and provisioning profiles, flagging expired/expiring (within
+`withinDays`, default 30) and INVALID profiles. Read-only.
+- `withinDays` — threshold in days
+- **Returns:** `{ summary, certIssues, profileIssues }` (each with `daysLeft`).
+
 ## Provisioning & code signing
 
 ### list_bundle_ids

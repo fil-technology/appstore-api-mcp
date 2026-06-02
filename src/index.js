@@ -1588,6 +1588,216 @@ const tools = [
     },
   },
 
+  // ---- Submission, release & fleet status ----
+  {
+    name: "apps_review_status",
+    description:
+      "Fleet review-status board: for all (or selected) apps, returns the most relevant App Store version and its state (WAITING_FOR_REVIEW, IN_REVIEW, PENDING_DEVELOPER_RELEASE, REJECTED, PROCESSING_FOR_APP_STORE, READY_FOR_SALE, …) plus an account summary. One call instead of opening every app. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appIds: { type: "array", items: { type: "string" } },
+        platform: { type: "string", description: "IOS, MAC_OS, TV_OS, VISION_OS" },
+        limit: { type: "number", description: "Audit at most this many apps" },
+      },
+    },
+    run: async (a) => {
+      let apps = await client.getAll("/apps", { limit: 200 });
+      if (a.appIds?.length) apps = apps.filter((x) => a.appIds.includes(x.id));
+      if (a.limit) apps = apps.slice(0, a.limit);
+      const IN_FLIGHT = new Set([
+        "PREPARE_FOR_SUBMISSION",
+        "WAITING_FOR_REVIEW",
+        "IN_REVIEW",
+        "PENDING_DEVELOPER_RELEASE",
+        "PENDING_APPLE_RELEASE",
+        "PROCESSING_FOR_APP_STORE",
+        "METADATA_REJECTED",
+        "REJECTED",
+        "DEVELOPER_REJECTED",
+        "INVALID_BINARY",
+        "WAITING_FOR_EXPORT_COMPLIANCE",
+      ]);
+      const rows = await mapLimit(apps, 6, async (app) => {
+        try {
+          const q = { limit: 10 };
+          if (a.platform) q["filter[platform]"] = a.platform;
+          const vers = await client.getAll(
+            `/apps/${app.id}/appStoreVersions`,
+            q,
+          );
+          const chosen =
+            vers.find((v) => IN_FLIGHT.has(v.attributes.appStoreState)) ||
+            vers.find((v) => v.attributes.appStoreState === "READY_FOR_SALE") ||
+            vers[0];
+          return {
+            appId: app.id,
+            name: app.attributes.name,
+            version: chosen?.attributes?.versionString,
+            state: chosen?.attributes?.appStoreState || "NO_VERSION",
+            platform: chosen?.attributes?.platform,
+          };
+        } catch (e) {
+          return { appId: app.id, name: app.attributes.name, error: e.message.slice(0, 80) };
+        }
+      });
+      const byState = {};
+      for (const r of rows) {
+        const s = r.state || (r.error ? "ERROR" : "unknown");
+        byState[s] = (byState[s] || 0) + 1;
+      }
+      return {
+        summary: { apps: rows.length, byState },
+        apps: rows.sort((x, y) =>
+          String(x.state).localeCompare(String(y.state)),
+        ),
+      };
+    },
+  },
+  {
+    name: "submit_for_review",
+    description:
+      "Submit an App Store version for Apple review. Runs the full flow: create a review submission, add the version, and submit it. NOTE: this sends the app to Apple review — confirm with the user first. platform default IOS.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        versionId: { type: "string", description: "appStoreVersion id to submit" },
+        platform: { type: "string", description: "IOS (default), MAC_OS, TV_OS, VISION_OS" },
+      },
+      required: ["appId", "versionId"],
+    },
+    run: async (a) => {
+      const sub = await client.post("/reviewSubmissions", {
+        data: {
+          type: "reviewSubmissions",
+          attributes: { platform: a.platform || "IOS" },
+          relationships: { app: { data: { type: "apps", id: a.appId } } },
+        },
+      });
+      const subId = sub.data.id;
+      await client.post("/reviewSubmissionItems", {
+        data: {
+          type: "reviewSubmissionItems",
+          relationships: {
+            reviewSubmission: {
+              data: { type: "reviewSubmissions", id: subId },
+            },
+            appStoreVersion: {
+              data: { type: "appStoreVersions", id: a.versionId },
+            },
+          },
+        },
+      });
+      const submitted = await client.patch(`/reviewSubmissions/${subId}`, {
+        data: {
+          type: "reviewSubmissions",
+          id: subId,
+          attributes: { submitted: true },
+        },
+      });
+      return { reviewSubmissionId: subId, result: submitted };
+    },
+  },
+  {
+    name: "release_version",
+    description:
+      "Release an approved version that's waiting for manual release (state PENDING_DEVELOPER_RELEASE). NOTE: this makes the version live on the App Store — confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: { versionId: { type: "string" } },
+      required: ["versionId"],
+    },
+    run: async (a) =>
+      client.post("/appStoreVersionReleaseRequests", {
+        data: {
+          type: "appStoreVersionReleaseRequests",
+          relationships: {
+            appStoreVersion: {
+              data: { type: "appStoreVersions", id: a.versionId },
+            },
+          },
+        },
+      }),
+  },
+
+  // ---- Code-signing health ----
+  {
+    name: "signing_health",
+    description:
+      "Code-signing health check: lists certificates and provisioning profiles, flagging any expired or expiring within `withinDays` (default 30) and any INVALID profiles. Catches silent CI breakage before it happens. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        withinDays: { type: "number", description: "Flag items expiring within N days (default 30)" },
+      },
+    },
+    run: async (a) => {
+      const within = a.withinDays ?? 30;
+      const now = Date.now();
+      const daysLeft = (d) =>
+        d ? Math.round((new Date(d).getTime() - now) / 86400000) : null;
+      const certs = await client.getAll("/certificates", { limit: 200 });
+      const profs = await client.getAll("/profiles", { limit: 200 });
+      const certRows = certs.map((c) => ({
+        id: c.id,
+        name: c.attributes.name,
+        type: c.attributes.certificateType,
+        expirationDate: c.attributes.expirationDate,
+        daysLeft: daysLeft(c.attributes.expirationDate),
+      }));
+      const profRows = profs.map((p) => ({
+        id: p.id,
+        name: p.attributes.name,
+        type: p.attributes.profileType,
+        state: p.attributes.profileState,
+        expirationDate: p.attributes.expirationDate,
+        daysLeft: daysLeft(p.attributes.expirationDate),
+      }));
+      const certIssues = certRows.filter(
+        (c) => c.daysLeft !== null && c.daysLeft <= within,
+      );
+      const profileIssues = profRows.filter(
+        (p) =>
+          p.state === "INVALID" ||
+          (p.daysLeft !== null && p.daysLeft <= within),
+      );
+      return {
+        summary: {
+          certificates: certRows.length,
+          profiles: profRows.length,
+          certsExpiringOrExpired: certIssues.length,
+          profilesInvalidOrExpiring: profileIssues.length,
+          withinDays: within,
+        },
+        certIssues: certIssues.sort((x, y) => (x.daysLeft ?? 0) - (y.daysLeft ?? 0)),
+        profileIssues: profileIssues.sort((x, y) => (x.daysLeft ?? 0) - (y.daysLeft ?? 0)),
+      };
+    },
+  },
+  {
+    name: "update_in_app_purchase",
+    description:
+      "Update an in-app purchase product's editable fields (reference name and/or review note). Pass the inAppPurchasesV2 id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        inAppPurchaseId: { type: "string" },
+        name: { type: "string", description: "Reference name" },
+        reviewNote: { type: "string" },
+      },
+      required: ["inAppPurchaseId"],
+    },
+    run: async (a) => {
+      const attributes = {};
+      if (a.name !== undefined) attributes.name = a.name;
+      if (a.reviewNote !== undefined) attributes.reviewNote = a.reviewNote;
+      return client.patch(`/inAppPurchasesV2/${a.inAppPurchaseId}`, {
+        data: { type: "inAppPurchasesV2", id: a.inAppPurchaseId, attributes },
+      });
+    },
+  },
+
   // ---- Generic escape hatch ----
   {
     name: "raw_request",

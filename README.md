@@ -252,6 +252,10 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | 🛒 `list_in_app_purchases` / `get_app_price_schedule` / `list_available_territories` / `get_age_rating` | Catalog, pricing, territory availability, and age-rating. |
 | 🔏 `list_bundle_ids` / `register_bundle_id` / `list_devices` / `register_device` / `list_certificates` / `create_certificate` / `revoke_certificate` / `list_profiles` / `create_profile` / `download_profile` / `delete_profile` | **Provisioning & code signing** — bundle IDs, devices, certificates, and provisioning profiles. |
 | 🎮 `list_game_center_leaderboards` / `list_game_center_achievements` | Game Center leaderboards & achievements. |
+| 🗂️ `apps_review_status` | **Fleet review board** — every app's current version + state (waiting/in-review/rejected/ready) in one call. |
+| 🚀 `submit_for_review` / `release_version` | Submit a version to Apple review (full flow) and release an approved build. |
+| 🔐 `signing_health` | Flag **certificates & profiles expiring soon** (or invalid) across the account — catches CI breakage early. |
+| `update_in_app_purchase` | Update an IAP's reference name / review note. |
 | `raw_request` | Any method/path against the API — app previews, matchmaking, Xcode Cloud, anything not above. |
 
 > ⚙️ **Rate-limit aware:** the client automatically backs off and retries on
