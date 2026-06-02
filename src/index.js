@@ -620,6 +620,49 @@ const tools = [
     },
   },
   {
+    name: "get_screenshot",
+    description:
+      "Fetch the actual screenshot IMAGE by its id and return it so the agent can SEE it (not just metadata). Downloads the live image asset from App Store Connect, downscaled for a quick preview by default. Use this to review/compare what's currently live on a listing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        screenshotId: { type: "string" },
+        maxWidth: {
+          type: "number",
+          description: "Downscale to this width in px for a lighter preview (default 750; pass 0 for full size)",
+        },
+      },
+      required: ["screenshotId"],
+    },
+    run: async (a) => {
+      const res = await client.get(`/appScreenshots/${a.screenshotId}`);
+      const attr = res.data.attributes || {};
+      const asset = attr.imageAsset;
+      if (!asset || !asset.templateUrl)
+        return {
+          note: "This screenshot has no rendered image yet (still uploading/processing). State: " +
+            (attr.assetDeliveryState && attr.assetDeliveryState.state),
+          fileName: attr.fileName,
+        };
+      const maxWidth = a.maxWidth === undefined ? 750 : a.maxWidth || 0;
+      const url = AppStoreConnectClient.imageUrlFromAsset(asset, maxWidth, "png");
+      const buf = await client.fetchBinary(url);
+      return {
+        __mcpContent: [
+          {
+            type: "image",
+            data: buf.toString("base64"),
+            mimeType: "image/png",
+          },
+          {
+            type: "text",
+            text: `Screenshot ${a.screenshotId} — ${attr.fileName || "(no name)"}, original ${asset.width}×${asset.height}.`,
+          },
+        ],
+      };
+    },
+  },
+  {
     name: "delete_screenshot",
     description: "Delete a screenshot by its id.",
     inputSchema: {
@@ -1091,6 +1134,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (!tool) return fail(new Error(`Unknown tool: ${req.params.name}`));
   try {
     const result = await tool.run(req.params.arguments || {});
+    // Tools may return raw MCP content (e.g. images) via __mcpContent.
+    if (result && result.__mcpContent) return { content: result.__mcpContent };
     return ok(result);
   } catch (e) {
     if (e && e.status === 403 && REPORT_TOOLS.has(req.params.name))

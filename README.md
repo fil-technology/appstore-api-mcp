@@ -242,6 +242,7 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | `create_app_store_version_localization` | Add a new locale to a version |
 | `list_screenshot_sets` / `create_screenshot_set` | Manage per-device screenshot sets |
 | `list_screenshots` / `upload_screenshot` / `delete_screenshot` | Manage screenshots (upload handles the full reserve→upload→commit flow) |
+| 👁️ `get_screenshot` | Fetch a live screenshot **as an image the agent can see** — review/compare what's currently on a listing |
 | 🚀 `audit_apps` | **Fleet health check** — scan all (or selected) apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots, and more. Read-only. |
 | 📊 `get_sales_report` / `get_subscription_report` / `get_finance_report` | Units/downloads, proceeds, **subscriptions & retention**, earnings by region (parsed rows). Needs a Vendor Number + a key with Admin/Finance/Sales role. |
 | 📈 `request_analytics_report` → `list_analytics_reports` → `list_analytics_report_instances` → `get_analytics_report_data` | The async Analytics Reports API — downloads, sessions, active devices, App Store engagement. |

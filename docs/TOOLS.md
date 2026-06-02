@@ -117,6 +117,13 @@ Common `displayType` values: `APP_IPHONE_67`, `APP_IPHONE_65`, `APP_IPHONE_61`,
 ### `list_screenshots`
 - `screenshotSetId` **(required)**
 
+### `get_screenshot`
+Fetch the actual screenshot **image** (not just metadata) and return it as an
+image the agent can see — review/compare what's currently live.
+- `screenshotId` **(required)**
+- `maxWidth` — downscale width in px for a lighter preview (default `750`; `0` = full size)
+- **Returns:** an `image/png` content block + a caption with the file name and original dimensions.
+
 ### `upload_screenshot`
 Upload an image into a set. Handles reserve → upload bytes → commit (with checksum).
 - `screenshotSetId` **(required)**

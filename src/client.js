@@ -193,6 +193,32 @@ export class AppStoreConnectClient {
       : buf.toString("utf8");
   }
 
+  /** Fetch raw bytes from a URL (e.g. an image asset). Returns a Buffer. */
+  async fetchBinary(url) {
+    const res = await fetch(url);
+    if (!res.ok)
+      throw new Error(`Image fetch failed (${res.status}) for ${url}`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Build a concrete image URL from an App Store Connect imageAsset
+   * (`{ templateUrl, width, height }`), optionally downscaled to maxWidth.
+   */
+  static imageUrlFromAsset(imageAsset, maxWidth, format = "png") {
+    if (!imageAsset || !imageAsset.templateUrl) return null;
+    let w = imageAsset.width || 0;
+    let h = imageAsset.height || 0;
+    if (maxWidth && w && h && w > maxWidth) {
+      h = Math.round((h * maxWidth) / w);
+      w = maxWidth;
+    }
+    return imageAsset.templateUrl
+      .replace("{w}", String(w))
+      .replace("{h}", String(h))
+      .replace("{f}", format);
+  }
+
   /** Parse TSV/CSV text into an array of row objects. Auto-detects delimiter. */
   static parseDelimited(text, delimiter) {
     const lines = text.split(/\r?\n/).filter((l) => l.length > 0);

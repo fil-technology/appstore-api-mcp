@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-06-02
+
+### Added
+- **`get_screenshot`** — fetch a live screenshot as an actual **image the agent
+  can see** (not just metadata). Downloads the App Store Connect image asset,
+  downscaled by default (`maxWidth`), and returns an `image/png` content block.
+  Lets an agent review/compare what's currently on a listing.
+
 ## [1.1.3] - 2026-06-02
 
 ### Changed
