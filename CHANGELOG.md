@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.1] - 2026-06-02
+
+### Changed
+- Surface **Safe mode / read-only** prominently: a headline highlight ("you can
+  run this read-only"), a table-of-contents entry, and a clearer Safe mode intro.
+
 ## [1.10.0] - 2026-06-02
 
 ### Added

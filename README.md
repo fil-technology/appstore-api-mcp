@@ -38,6 +38,7 @@ whatever AI agent you already use.
 
 - 🤖 **Any MCP client** — Claude, Codex, Cursor, Windsurf, Antigravity, Gemini CLI, Amazon Q, Goose, Zed, VS Code… → [docs/CLIENTS.md](docs/CLIENTS.md)
 - ⚡ **One-line install** (`npx`, no build) — or paste a prompt and let your agent set it up for you
+- 🛡️ **Safe by choice** — run it **fully read-only** with one env var (`APPSTORE_MCP_READ_ONLY=true`), or block just releases/pricing/review-replies. The server *enforces* it — see [Safe mode](#safe-mode)
 - 🔒 **Keys never leave your machine** — calls go straight to Apple, nothing proxied
 - 📦 **MIT · published with provenance · actively maintained**
 
@@ -48,7 +49,7 @@ whatever AI agent you already use.
 - [Quick start](#quick-start) — incl. [agent-assisted setup](docs/AGENT-SETUP.md)
 - [Supported clients](#supported-clients) → full guide in [docs/CLIENTS.md](docs/CLIENTS.md)
 - [Getting your API key](#getting-your-api-key) → full guide in [docs/SETUP.md](docs/SETUP.md)
-- [Configuration](#configuration)
+- [Configuration](#configuration) — incl. [🛡️ Safe mode (read-only)](#safe-mode)
 - [Tools](#tools) → full reference in [docs/TOOLS.md](docs/TOOLS.md)
 - [What you can ask](#what-you-can-ask) — ready-made prompts in [docs/RECIPES.md](docs/RECIPES.md)
 - [Analytics & reports setup](docs/ANALYTICS.md) — roles, Vendor Number, examples
@@ -216,10 +217,11 @@ All configuration is via environment variables.
 
 See [.env.example](.env.example) for a copy-paste template.
 
-### 🛡️ Safe mode (optional, recommended for shared/CI setups)
+### Safe mode
 
-Tool-level guardrails — enforced by the server, not "please ask the agent." Set
-any of these env vars to lock things down:
+**You can run this read-only.** Tool-level guardrails — enforced by the *server*,
+not "please ask the agent" — so even a misbehaving agent can't write. Recommended
+for shared machines, demos, or CI. Set any of these env vars to lock things down:
 
 | Variable | Effect |
 | --- | --- |
