@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-06-02
+
+### Added
+- **Build & ship from a Mac** (local Xcode tooling):
+  - `bump_build_number` — increment/set the build number via agvtool.
+  - `archive_app` — archive + export a signed `.ipa` via xcodebuild.
+  - `upload_build` — upload to App Store Connect via `xcrun altool`, reusing the
+    same API key; auto-places the `.p8` where altool expects it.
+  - Each tool returns friendly install guidance if Xcode/CLI tools are missing.
+
 ## [1.7.2] - 2026-06-02
 
 ### Changed

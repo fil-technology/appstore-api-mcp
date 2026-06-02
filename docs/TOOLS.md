@@ -389,6 +389,30 @@ Lists certificates and provisioning profiles, flagging expired/expiring (within
 ### list_game_center_leaderboards / list_game_center_achievements
 - `appId` **(required)** — requires Game Center enabled on the app.
 
+## Build & ship (macOS + Xcode)
+
+These run local Xcode tooling, so they only work on a Mac with Xcode installed.
+Each returns clear install guidance if a tool is missing.
+
+### bump_build_number
+- `projectDir` **(required)** — folder containing the `.xcodeproj`
+- `setTo` — exact build number (omit to increment by 1). Uses `agvtool`.
+
+### archive_app
+Archive + export a signed `.ipa` for App Store upload (`xcodebuild`). **Can take
+several minutes** — your MCP client may need a longer tool timeout.
+- `project` **or** `workspace` **(one required)** — absolute path
+- `scheme` **(required)**, `configuration` (default Release)
+- `exportMethod` (default `app-store-connect`), `teamId`, `outputDir`
+- **Returns:** `{ ipaPath, archivePath, exportPath }`
+
+### upload_build
+Upload an `.ipa` via `xcrun altool --upload-app`, using your App Store Connect
+API key (`ASC_KEY_ID` / `ASC_ISSUER_ID`). The `.p8` is auto-placed where altool
+looks (`~/.appstoreconnect/private_keys/`). After processing, the build appears
+in `list_builds` and can be submitted with `submit_for_review`.
+- `ipaPath` **(required)**, `platform` (default `ios`), `apiKey`, `apiIssuer`
+
 ---
 
 ## Rate limits

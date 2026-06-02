@@ -1,6 +1,15 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  copyFileSync,
+  readdirSync,
+} from "node:fs";
+import { basename, join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { execFile } from "node:child_process";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -130,6 +139,61 @@ const EDITABLE_VERSION_STATES = new Set([
 
 // Optional default Vendor Number for sales/finance reports.
 const DEFAULT_VENDOR = process.env.ASC_VENDOR_NUMBER;
+
+// ---- Local build tooling (archive & upload) helpers ----
+
+/** Run a command, capturing output. timeout 0 = no timeout (for long archives). */
+function runCmd(cmd, args, opts = {}) {
+  return new Promise((resolve) => {
+    execFile(
+      cmd,
+      args,
+      {
+        cwd: opts.cwd,
+        timeout: opts.timeout || 0,
+        maxBuffer: 64 * 1024 * 1024,
+        env: process.env,
+      },
+      (err, stdout, stderr) => {
+        resolve({
+          code: err && typeof err.code === "number" ? err.code : err ? 1 : 0,
+          stdout: stdout || "",
+          stderr: stderr || "",
+          error: err ? err.message : null,
+        });
+      },
+    );
+  });
+}
+
+const tail = (s, n = 40) => (s || "").split("\n").slice(-n).join("\n");
+
+/** Throw a friendly install-guidance error if Xcode CLI tools aren't available. */
+async function ensureXcode() {
+  if (process.platform !== "darwin")
+    throw new Error(
+      "Archiving/uploading requires macOS with Xcode. These build tools only run on a Mac.",
+    );
+  const sel = await runCmd("xcode-select", ["-p"]);
+  if (sel.code !== 0)
+    throw new Error(
+      "Xcode command-line tools not found. To fix: 1) install Xcode from the Mac App Store, 2) run `xcode-select --install` (or, if Xcode is already installed, `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`), then verify with `xcodebuild -version`.",
+    );
+  return sel.stdout.trim();
+}
+
+/** Make sure altool can find the .p8: copy it to ~/.appstoreconnect/private_keys/. */
+function ensureAltoolKey(keyId) {
+  const src = process.env.ASC_PRIVATE_KEY_PATH;
+  if (!src || !existsSync(src)) return false;
+  const dir = join(homedir(), ".appstoreconnect", "private_keys");
+  const dest = join(dir, `AuthKey_${keyId}.p8`);
+  if (!existsSync(dest)) {
+    mkdirSync(dir, { recursive: true });
+    copyFileSync(src, dest);
+  }
+  return true;
+}
 
 /** Cap parsed report rows so large reports don't flood the response. */
 function reportResult(reportType, parsed, limit = 200) {
@@ -2001,6 +2065,145 @@ const tools = [
     },
   },
 
+  // ---- Local build: archive & upload (macOS + Xcode) ----
+  {
+    name: "bump_build_number",
+    description:
+      "Increment (or set) an Xcode project's build number (CFBundleVersion / CURRENT_PROJECT_VERSION) via agvtool. macOS + Xcode required. Pass projectDir = the folder containing the .xcodeproj.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectDir: { type: "string", description: "Folder containing the .xcodeproj" },
+        setTo: { type: "string", description: "Set to this exact build number; omit to increment by 1" },
+      },
+      required: ["projectDir"],
+    },
+    run: async (a) => {
+      await ensureXcode();
+      const cur = await runCmd("xcrun", ["agvtool", "what-version", "-terse"], { cwd: a.projectDir });
+      const previous = (cur.stdout || "").trim();
+      const res = a.setTo
+        ? await runCmd("xcrun", ["agvtool", "new-version", "-all", a.setTo], { cwd: a.projectDir })
+        : await runCmd("xcrun", ["agvtool", "next-version", "-all"], { cwd: a.projectDir });
+      if (res.code !== 0)
+        return {
+          error:
+            "agvtool failed — ensure the project's Versioning System is 'Apple Generic' (target → Build Settings → Versioning), or set the build number in Xcode manually.",
+          detail: tail(res.stderr || res.stdout, 8),
+          previous,
+        };
+      const after = await runCmd("xcrun", ["agvtool", "what-version", "-terse"], { cwd: a.projectDir });
+      return { previous, current: (after.stdout || "").trim() };
+    },
+  },
+  {
+    name: "archive_app",
+    description:
+      "Archive an Xcode app and export a signed .ipa ready for App Store upload (xcodebuild archive + -exportArchive). macOS + Xcode required. Returns the .ipa path. CAN TAKE SEVERAL MINUTES — your MCP client may need a longer tool timeout; xcodebuild keeps running server-side regardless.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: { type: "string", description: "Absolute path to the .xcodeproj" },
+        workspace: { type: "string", description: "Absolute path to the .xcworkspace (use instead of project)" },
+        scheme: { type: "string" },
+        configuration: { type: "string", description: "Release (default)" },
+        exportMethod: { type: "string", description: "app-store-connect (default), release-testing, enterprise, …" },
+        teamId: { type: "string", description: "Signing team id (optional)" },
+        outputDir: { type: "string", description: "Where to write the archive + ipa (default: a temp dir)" },
+      },
+      required: ["scheme"],
+    },
+    run: async (a) => {
+      await ensureXcode();
+      if (!a.project && !a.workspace)
+        return { error: "Provide either project (.xcodeproj) or workspace (.xcworkspace)." };
+      const safe = a.scheme.replace(/\W+/g, "_");
+      const out = a.outputDir || join(tmpdir(), `asc-archive-${safe}`);
+      mkdirSync(out, { recursive: true });
+      const archivePath = join(out, `${safe}.xcarchive`);
+      const exportPath = join(out, "export");
+      const target = a.workspace
+        ? ["-workspace", a.workspace]
+        : ["-project", a.project];
+      const archiveArgs = [
+        ...target,
+        "-scheme", a.scheme,
+        "-configuration", a.configuration || "Release",
+        "-destination", "generic/platform=iOS",
+        "-archivePath", archivePath,
+        "archive",
+        "-allowProvisioningUpdates",
+      ];
+      const arch = await runCmd("xcodebuild", archiveArgs);
+      if (arch.code !== 0)
+        return { step: "archive", error: "xcodebuild archive failed", log: tail(arch.stdout + "\n" + arch.stderr, 50) };
+      const plistPath = join(out, "ExportOptions.plist");
+      const method = a.exportMethod || "app-store-connect";
+      writeFileSync(
+        plistPath,
+        `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>method</key><string>${method}</string>
+<key>signingStyle</key><string>automatic</string>
+${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadSymbols</key><true/>
+</dict></plist>
+`,
+      );
+      const exp = await runCmd("xcodebuild", [
+        "-exportArchive",
+        "-archivePath", archivePath,
+        "-exportOptionsPlist", plistPath,
+        "-exportPath", exportPath,
+        "-allowProvisioningUpdates",
+      ]);
+      if (exp.code !== 0)
+        return { step: "export", error: "xcodebuild -exportArchive failed", log: tail(exp.stdout + "\n" + exp.stderr, 50) };
+      const ipa = existsSync(exportPath)
+        ? readdirSync(exportPath).find((f) => f.endsWith(".ipa"))
+        : null;
+      if (!ipa)
+        return { error: "No .ipa was produced.", exportPath, files: existsSync(exportPath) ? readdirSync(exportPath) : [] };
+      return { ipaPath: join(exportPath, ipa), archivePath, exportPath };
+    },
+  },
+  {
+    name: "upload_build",
+    description:
+      "Upload an .ipa to App Store Connect via `xcrun altool --upload-app`, using your App Store Connect API key (the same ASC_KEY_ID / ASC_ISSUER_ID this server already uses). macOS + Xcode required. After it finishes processing (minutes), the build appears in list_builds and can be submitted with submit_for_review.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ipaPath: { type: "string" },
+        platform: { type: "string", description: "ios (default), macos, tvos" },
+        apiKey: { type: "string", description: "Override ASC_KEY_ID" },
+        apiIssuer: { type: "string", description: "Override ASC_ISSUER_ID" },
+      },
+      required: ["ipaPath"],
+    },
+    run: async (a) => {
+      await ensureXcode();
+      if (!existsSync(a.ipaPath))
+        return { error: `File not found: ${a.ipaPath}` };
+      const keyId = a.apiKey || process.env.ASC_KEY_ID;
+      const issuer = a.apiIssuer || process.env.ASC_ISSUER_ID;
+      if (!keyId || !issuer)
+        return { error: "apiKey + apiIssuer required (or set ASC_KEY_ID / ASC_ISSUER_ID)." };
+      ensureAltoolKey(keyId);
+      const res = await runCmd("xcrun", [
+        "altool",
+        "--upload-app",
+        "-t", a.platform || "ios",
+        "-f", a.ipaPath,
+        "--apiKey", keyId,
+        "--apiIssuer", issuer,
+      ]);
+      if (res.code !== 0)
+        return { error: "Upload failed", log: tail(res.stdout + "\n" + res.stderr, 40) };
+      return { uploaded: true, output: tail(res.stdout + "\n" + res.stderr, 20) };
+    },
+  },
+
   // ---- Generic escape hatch ----
   {
     name: "raw_request",
@@ -2044,7 +2247,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.7.2" },
+  { name: "appstore-api-mcp", version: "1.8.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

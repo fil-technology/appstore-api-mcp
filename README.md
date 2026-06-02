@@ -253,6 +253,7 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | `list_game_center_leaderboards` / `list_game_center_achievements` | 🎮 Game Center leaderboards & achievements |
 | `signing_health` | 🔐 Flag **certificates & profiles expiring soon** (or invalid) across the account — catches CI breakage early |
 | `list_bundle_ids` / `register_bundle_id` / `list_devices` / `register_device` / `list_certificates` / `create_certificate` / `revoke_certificate` / `list_profiles` / `create_profile` / `download_profile` / `delete_profile` | 🔏 **Provisioning & code signing** — bundle IDs, devices, certificates, and provisioning profiles |
+| `bump_build_number` / `archive_app` / `upload_build` | 🛠️ **Build & ship from a Mac** — bump the build number (agvtool), archive + export a signed `.ipa` (xcodebuild), and upload to App Store Connect (`altool`, using your existing API key). Requires Xcode; tools explain how to install it if missing |
 | `raw_request` | 🧰 Any method/path against the API — app previews, matchmaking, Xcode Cloud, anything not above |
 
 > ⚙️ **Rate-limit aware:** the client automatically backs off and retries on
