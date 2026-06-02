@@ -49,6 +49,7 @@ and reach the entire API, from whatever AI agent you already use.
 - [Getting your API key](#getting-your-api-key) → full guide in [docs/SETUP.md](docs/SETUP.md)
 - [Configuration](#configuration)
 - [Tools](#tools) → full reference in [docs/TOOLS.md](docs/TOOLS.md)
+- [Analytics & reports setup](docs/ANALYTICS.md) — roles, Vendor Number, examples
 - [Common workflows](#common-workflows)
 - [Security](#security) → details in [docs/SECURITY.md](docs/SECURITY.md)
 - [Troubleshooting](#troubleshooting)
@@ -214,7 +215,9 @@ See [.env.example](.env.example) for a copy-paste template.
 > **Reports need a higher-privilege key.** The sales/subscription/finance/analytics
 > tools require an API key with the **Admin, Finance, or Sales** role — an **App
 > Manager** key (fine for metadata/keywords/screenshots) returns `403` for reports.
-> Generate a separate report-capable key if you need analytics.
+> Sales/finance also need your **Vendor Number** (App Store Connect → Payments and
+> Financial Reports) via `ASC_VENDOR_NUMBER` or the `vendorNumber` argument.
+> Full walkthrough: **[docs/ANALYTICS.md](docs/ANALYTICS.md)**.
 
 ---
 

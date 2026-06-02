@@ -206,6 +206,7 @@ length warnings are attached to the response under `_warnings`.
 > Sales** role. An **App Manager** key returns `403`. Sales/finance also need a
 > **Vendor Number** (App Store Connect → Payments and Financial Reports; 8–9
 > digits) — pass `vendorNumber` or set the `ASC_VENDOR_NUMBER` env var.
+> Full setup walkthrough: **[ANALYTICS.md](ANALYTICS.md)**.
 
 All report tools return `{ reportType, columns, rowCount, returned, truncated, rows }`
 with `rows` capped at `limit` (default 200).

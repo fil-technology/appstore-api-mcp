@@ -20,9 +20,14 @@ Step-by-step from zero to a working server.
 4. Click the **+** button to create a new key.
    - **Name:** something like `mcp-metadata`.
    - **Access (role):** choose the **least privilege** that covers your use:
-     - **App Manager** — edit metadata, keywords, screenshots, versions, TestFlight. ✅ Recommended.
+     - **App Manager** — edit metadata, keywords, screenshots, versions, TestFlight. ✅ Recommended for the listing tools.
      - **Developer** — narrower; may not allow all edits.
      - **Admin** — full control. Only if you genuinely need it.
+   - ⚠️ **Analytics/sales/finance reports need more.** An App Manager key returns
+     `403` for the report tools. To read downloads, proceeds, subscriptions, etc.,
+     use a key with the **Admin, Finance, or Sales** role (and your **Vendor
+     Number**). See [ANALYTICS.md](ANALYTICS.md). You can run two keys — one for
+     metadata, one for reports.
 5. Click **Generate**. You'll now see the key listed with a **Key ID** — that's your `ASC_KEY_ID`.
 6. Click **Download API Key** to get the `AuthKey_XXXXXXXXXX.p8` file.
    > ⚠️ You can only download this **once**. Save it somewhere safe and backed up.

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-06-02
+
+### Changed
+- Documented the analytics/reporting requirements clearly: a dedicated
+  [docs/ANALYTICS.md](docs/ANALYTICS.md) (role table — App Manager returns 403,
+  Vendor Number, two-key setup, examples, troubleshooting), plus notes in the
+  README config section, SETUP, and the tools reference.
+
 ## [1.1.0] - 2026-06-02
 
 ### Added
