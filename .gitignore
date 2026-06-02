@@ -1,0 +1,15 @@
+# Secrets — NEVER commit these
+secrets/
+*.p8
+.env
+.env.local
+*.key
+
+# Dependencies / build
+node_modules/
+
+# Editor / OS / tooling
+.claude/
+.DS_Store
+*.log
+npm-debug.log*

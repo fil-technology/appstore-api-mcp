@@ -1,0 +1,53 @@
+{
+  "name": "app-store-connect-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Apple App Store Connect — manage apps, keywords, descriptions, titles, screenshots, versions and the full API from Claude and other MCP clients. Includes a fleet-wide ASO audit and dry-run previews.",
+  "type": "module",
+  "bin": {
+    "app-store-connect-mcp": "src/index.js"
+  },
+  "main": "src/index.js",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "docs",
+    ".env.example"
+  ],
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "app-store-connect",
+    "appstore",
+    "app-store",
+    "itunes-connect",
+    "aso",
+    "ios",
+    "apple",
+    "claude",
+    "keywords",
+    "screenshots",
+    "metadata"
+  ],
+  "license": "MIT",
+  "author": "Sviatoslav Fil",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fil-technology/app-store-connect-mcp.git"
+  },
+  "homepage": "https://github.com/fil-technology/app-store-connect-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/fil-technology/app-store-connect-mcp/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "jose": "^5.9.6"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
