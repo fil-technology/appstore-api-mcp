@@ -2247,7 +2247,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.8.0" },
+  { name: "appstore-api-mcp", version: "1.8.1" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

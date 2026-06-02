@@ -62,7 +62,9 @@ whatever AI agent you already use.
 ## Quick start
 
 **Requirements:** Node.js ≥ 18 and an Apple Developer account with an
-[App Store Connect API key](#getting-your-api-key).
+[App Store Connect API key](#getting-your-api-key). Everything works from any
+OS — *except* the optional **build & ship** tools (`archive_app` / `upload_build`),
+which additionally need a **Mac with Xcode**.
 
 ### 🤖 Easiest: let your AI agent set it up (works with any agent)
 
@@ -273,24 +275,41 @@ Once it's connected, just talk to your agent in plain language. A few things to 
 - *"Which of my apps are missing a subtitle or screenshots?"* (fleet audit)
 - *"Tighten the keywords for <app> — dry-run it first so I can confirm."*
 - *"Show me <app>'s current screenshots and flag any that look outdated."*
-- *"Translate <app>'s description and keywords into German and French."*
+- *"Translate <app>'s description and keywords into German and French."* (bulk localization)
 
-**Performance**
+**Performance & feedback**
 - *"How many downloads did all my apps get last week?"*
 - *"Pull last month's proceeds broken down by country."*
 - *"How many active subscribers do I have, and what's the recent churn?"*
-
-**Releases & the rest of the API** (via `raw_request`)
-- *"Create a new App Store version (1.4.0) for <app>."*
 - *"Summarize this week's 1-star reviews and draft polite replies."*
+
+**Release management**
+- *"Which of my apps are waiting for review, rejected, or ready to release?"* (fleet review board)
+- *"Create a new App Store version 1.4.0 for <app>, then submit it for review."*
+- *"Release <app> — it's approved and waiting for manual release."*
 - *"List my latest TestFlight builds and which beta groups can see them."*
-- *"What's <app>'s price and which territories is it available in?"*
+
+**Pipeline & accounts**
+- *"Are any of my certificates or provisioning profiles expiring soon?"* (signing health)
+- *"What's <app>'s price, and which territories is it available in?"*
+
+**🛠️ Build & ship — *additional, Mac-only* (see note below)**
+- *"Bump SpeakerMate's build number, archive it, and upload the new build to App Store Connect."*
+- *"Create an archive of <app> and export a signed .ipa."*
+- *"Upload this .ipa to App Store Connect."*
 
 > **Dedicated tools cover it all:** app management, localization, screenshots
 > (incl. *seeing* them), sales/subscriptions/analytics, ASO audit, dry-run,
-> **customer reviews, TestFlight, in-app purchases, pricing, availability, and
-> age-rating**. Anything else in the App Store Connect API is still reachable
-> through the **`raw_request`** escape hatch — just ask.
+> customer reviews, TestFlight, in-app purchases, pricing, availability, age-rating,
+> submit/release, and signing health. Anything else in the App Store Connect API
+> is still reachable through the **`raw_request`** escape hatch — just ask.
+>
+> 🛠️ **Build & ship is different — it's an optional, local add-on.** Almost every
+> tool here talks to Apple's API and works from **any machine**. The three build
+> tools (`bump_build_number`, `archive_app`, `upload_build`) instead run **local
+> Xcode commands**, so they only work on a **Mac with Xcode installed** and an
+> Xcode project on disk. If those aren't present the tools tell you exactly what
+> to install; everything else keeps working regardless.
 
 ## Common workflows
 

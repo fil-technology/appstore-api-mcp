@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] - 2026-06-02
+
+### Changed
+- Docs clarify that **build & ship** (`archive_app` / `upload_build` /
+  `bump_build_number`) is an optional, **Mac + Xcode** add-on — everything else
+  works from any OS. Added "build & ship" examples (archive, upload a new build)
+  to the README "What you can ask" section and refreshed the other groups.
+
 ## [1.8.0] - 2026-06-02
 
 ### Added
