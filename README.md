@@ -28,6 +28,8 @@ whatever AI agent you already use.
 
 > **🌐 The whole API, not a curated slice.** First-class tools for the daily work (keywords, descriptions, titles, subtitles, screenshots, versions) **plus** a `raw_request` escape hatch for everything else — TestFlight, pricing, in-app purchases, customer reviews (read & reply), and more.
 
+> **🔒 Safe by default if you want it.** Worried about a write-capable tool touching your live apps? Set **`APPSTORE_MCP_READ_ONLY=true`** and it physically **cannot write** — only reads, audits, and reports run. Or block just the risky bits (releases, pricing, public review replies). It's enforced by the *server*, so even a misbehaving agent can't get around it. → [Safe mode](#safe-mode)
+
 ### 💬 Just ask
 
 > *“Set the keywords for my budgeting app to budget, expenses, money tracker.”*
@@ -38,8 +40,7 @@ whatever AI agent you already use.
 
 - 🤖 **Any MCP client** — Claude, Codex, Cursor, Windsurf, Antigravity, Gemini CLI, Amazon Q, Goose, Zed, VS Code… → [docs/CLIENTS.md](docs/CLIENTS.md)
 - ⚡ **One-line install** (`npx`, no build) — or paste a prompt and let your agent set it up for you
-- 🛡️ **Safe by choice** — run it **fully read-only** with one env var (`APPSTORE_MCP_READ_ONLY=true`), or block just releases/pricing/review-replies. The server *enforces* it — see [Safe mode](#safe-mode)
-- 🔒 **Keys never leave your machine** — calls go straight to Apple, nothing proxied
+- 🔒 **Keys never leave your machine** — calls go straight to Apple, nothing proxied; optional [read-only mode](#safe-mode)
 - 📦 **MIT · published with provenance · actively maintained**
 
 ---

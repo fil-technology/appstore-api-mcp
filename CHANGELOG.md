@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.2] - 2026-06-02
+
+### Changed
+- Feature read-only / safe mode as a headline differentiator in the README's
+  "What makes it stand out" section.
+
 ## [1.10.1] - 2026-06-02
 
 ### Changed
