@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] - 2026-06-02
+
+### Fixed
+- Correct author attribution to **Sviatoslav (Sviat) Fil** (given name Sviatoslav;
+  Fil is the family name) in the server instructions and README.
+
 ## [1.7.0] - 2026-06-02
 
 ### Added
