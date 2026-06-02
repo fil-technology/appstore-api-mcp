@@ -30,7 +30,10 @@ Sales and finance reports are scoped to a **Vendor Number** — an 8–9 digit I
 **not** the same as your Key ID or Issuer ID.
 
 - Find it in **App Store Connect → Payments and Financial Reports** (or **Sales
-  and Trends**) — it's shown near your legal entity / at the top of the reports.
+  and Trends**) — it's the **Vendor #** shown at the top:
+
+![Where to find the Vendor Number in App Store Connect → Payments and Financial Reports](https://raw.githubusercontent.com/fil-technology/appstore-api-mcp/main/assets/where-to-find-vendor-number.png)
+
 - Provide it either way:
   - **Per call:** pass `vendorNumber` in the tool arguments, or
   - **Globally:** set the `ASC_VENDOR_NUMBER` environment variable in your MCP config.
