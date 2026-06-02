@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.4] - 2026-06-02
+
+### Changed
+- Agent-setup prompt now **guides the user to obtain missing credentials**
+  (where to find the Key ID / Issuer ID, how to generate and download the .p8)
+  instead of stopping with an error when values are still placeholders.
+
 ## [1.0.3] - 2026-06-02
 
 ### Changed

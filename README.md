@@ -54,14 +54,23 @@ My App Store Connect API credentials:
 - Path to my .p8 private key file: <ABSOLUTE_PATH_TO_AuthKey_XXXX.p8>
 
 Please:
-1. Detect which MCP client I'm using and add the server to its config. Run it
-   with: npx -y appstore-api-mcp
-2. Pass these env vars: ASC_KEY_ID, ASC_ISSUER_ID, and ASC_PRIVATE_KEY_PATH
+1. If any of the three values above are still placeholders or I didn't provide
+   them, do NOT stop with an error — guide me to get them, then wait for me:
+     - Key ID & Issuer ID: go to App Store Connect → Users and Access →
+       Integrations tab → "App Store Connect API". The Issuer ID is shown at the
+       top of that page; the Key ID is listed next to each key.
+     - No key yet? Click the + to generate one, give it the "App Manager" role
+       (enough to edit metadata/keywords/screenshots), then Download the .p8
+       file — you can only download it once, so save it somewhere safe.
+     - The .p8 path is the absolute path to wherever you saved that file.
+2. Detect which MCP client I'm using and add the server to its config (run it
+   with: npx -y appstore-api-mcp).
+3. Pass these env vars: ASC_KEY_ID, ASC_ISSUER_ID, and ASC_PRIVATE_KEY_PATH
    (point ASC_PRIVATE_KEY_PATH at my .p8 path — reference the PATH, do not
    inline the key contents).
-3. Install it at user/global scope (for Claude Code use `--scope user`).
-4. Do NOT print, echo, log, or commit the key. Keep the .p8 outside any git repo.
-5. When done, verify by listing my App Store apps and report the result.
+4. Install it at user/global scope (for Claude Code use `--scope user`).
+5. Do NOT print, echo, log, or commit the key. Keep the .p8 outside any git repo.
+6. When done, verify by listing my App Store apps and report the result.
 
 Config formats per client: https://github.com/fil-technology/appstore-api-mcp/blob/main/docs/CLIENTS.md
 ```
