@@ -56,6 +56,19 @@ claude mcp add appstore-api \
 }
 ```
 
+## OpenAI Codex CLI
+
+Codex uses **TOML**, not JSON. Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.appstore-api]
+command = "npx"
+args = ["-y", "appstore-api-mcp"]
+env = { ASC_KEY_ID = "YOUR_KEY_ID", ASC_ISSUER_ID = "YOUR_ISSUER_ID", ASC_PRIVATE_KEY_PATH = "/absolute/path/to/AuthKey.p8" }
+```
+
+(You can also manage this with `codex mcp add` if your Codex version supports it.)
+
 ## Cursor
 
 Project-level `.cursor/mcp.json` (or global `~/.cursor/mcp.json`) — same shape:
@@ -141,6 +154,26 @@ mcpServers:
       ASC_KEY_ID: YOUR_KEY_ID
       ASC_ISSUER_ID: YOUR_ISSUER_ID
       ASC_PRIVATE_KEY_PATH: /absolute/path/to/AuthKey.p8
+```
+
+## Gemini CLI
+
+In `~/.gemini/settings.json` — same `mcpServers` shape as Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "appstore-api": {
+      "command": "npx",
+      "args": ["-y", "appstore-api-mcp"],
+      "env": {
+        "ASC_KEY_ID": "YOUR_KEY_ID",
+        "ASC_ISSUER_ID": "YOUR_ISSUER_ID",
+        "ASC_PRIVATE_KEY_PATH": "/absolute/path/to/AuthKey.p8"
+      }
+    }
+  }
+}
 ```
 
 ## Any other MCP client / custom agent

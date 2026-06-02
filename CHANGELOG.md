@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-06-02
+
+### Added
+- Setup instructions for **OpenAI Codex CLI** (TOML config) and **Gemini CLI**.
+
+### Changed
+- Description and docs reworded to make the client-agnostic support explicit (no longer Claude-centric).
+
 ## [1.0.0] - 2026-06-02
 
 ### Added

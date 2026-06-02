@@ -10,7 +10,7 @@ versions — plus a raw-request tool that reaches the **entire**
 > *"show the English description for MyApp"*, or
 > *"upload these screenshots to the 6.7-inch set"* — the agent calls the right tools.
 
-- 🤖 **Works with any MCP client** — Claude Code/Desktop, Cursor, Cline, Windsurf, VS Code (agent mode), Zed, Continue, and custom agents on the MCP SDKs. Standard stdio server, no client-specific code. → [docs/CLIENTS.md](docs/CLIENTS.md)
+- 🤖 **Works with any MCP client** — Claude Code/Desktop, OpenAI Codex CLI, Cursor, Cline, Windsurf, VS Code (agent mode), Zed, Continue, Gemini CLI, and custom agents on the MCP SDKs. Standard stdio server, no client-specific code. → [docs/CLIENTS.md](docs/CLIENTS.md)
 - ✅ **One-line install** via `npx` — no clone, no build
 - ✅ **Credentials stay on your machine** — calls go straight to Apple, nothing is proxied
 - ✅ **Slim, well-described tool set** + a `raw_request` escape hatch for the whole API
@@ -87,12 +87,14 @@ the same; only each client's config format/location differs.
 | --- | --- |
 | **Claude Code** | `claude mcp add …` (see above) |
 | **Claude Desktop** | `claude_desktop_config.json` → `mcpServers` |
+| **OpenAI Codex CLI** | `~/.codex/config.toml` → `[mcp_servers.appstore-api]` |
 | **Cursor** | `.cursor/mcp.json` → `mcpServers` |
 | **Cline** (VS Code) | `cline_mcp_settings.json` → `mcpServers` |
 | **Windsurf** | `~/.codeium/windsurf/mcp_config.json` → `mcpServers` |
 | **VS Code** (agent mode) | `.vscode/mcp.json` → `servers` (note: not `mcpServers`) |
 | **Zed** | `settings.json` → `context_servers` |
 | **Continue** | `~/.continue/config.yaml` → `mcpServers` |
+| **Gemini CLI** | `~/.gemini/settings.json` → `mcpServers` |
 | **Custom agent** (MCP SDK / Agents SDK / LangChain) | spawn the stdio command with the env vars |
 
 Copy-paste config snippets for each are in **[docs/CLIENTS.md](docs/CLIENTS.md)**.
