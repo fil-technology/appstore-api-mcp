@@ -41,7 +41,9 @@ chmod 600 ~/.appstoreconnect/AuthKey_XXXXXXXXXX.p8
 ### Claude Code
 
 ```bash
-claude mcp add appstore-connect \
+# --scope user installs it for ALL your projects (recommended).
+# Remove the --scope user line to install for the current project only.
+claude mcp add appstore-api \
   --scope user \
   --env ASC_KEY_ID=YOUR_KEY_ID \
   --env ASC_ISSUER_ID=YOUR_ISSUER_ID \
@@ -58,7 +60,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "appstore-connect": {
+    "appstore-api": {
       "command": "npx",
       "args": ["-y", "appstore-api-mcp"],
       "env": {

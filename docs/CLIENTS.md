@@ -27,6 +27,8 @@ with these three env vars (see [SETUP.md](SETUP.md) to get them):
 ## Claude Code (CLI)
 
 ```bash
+# --scope user installs it for ALL your projects (recommended).
+# Remove the --scope user line to install for the current project only.
 claude mcp add appstore-api \
   --scope user \
   --env ASC_KEY_ID=YOUR_KEY_ID \

@@ -42,15 +42,15 @@ versions — plus a raw-request tool that reaches the **entire**
 ### Claude Code (CLI)
 
 ```bash
+# --scope user installs it for ALL your projects (recommended).
+# Remove the --scope user line to install for the current project only.
 claude mcp add appstore-api \
+  --scope user \
   --env ASC_KEY_ID=YOUR_KEY_ID \
   --env ASC_ISSUER_ID=YOUR_ISSUER_ID \
   --env ASC_PRIVATE_KEY_PATH=/absolute/path/to/AuthKey_XXXXXXXXXX.p8 \
   -- npx -y appstore-api-mcp
 ```
-
-Add `--scope user` to make it available in **every** project (default is the
-current project only).
 
 ### Any other MCP client (Cursor, Cline, Windsurf, VS Code, Zed, Continue, …)
 
