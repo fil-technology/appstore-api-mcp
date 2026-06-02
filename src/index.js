@@ -1337,6 +1337,257 @@ const tools = [
       }),
   },
 
+  // ---- Provisioning & code signing ----
+  {
+    name: "list_bundle_ids",
+    description:
+      "List registered Bundle IDs (app identifiers). Optionally filter by identifier.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        filterIdentifier: { type: "string" },
+        limit: { type: "number", description: "Max (default 200)" },
+      },
+    },
+    run: async (a) => {
+      const q = { limit: a.limit ?? 200 };
+      if (a.filterIdentifier) q["filter[identifier]"] = a.filterIdentifier;
+      const data = await client.getAll("/bundleIds", q);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "register_bundle_id",
+    description:
+      "Register a new Bundle ID. platform: IOS, MAC_OS, or UNIVERSAL.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        identifier: { type: "string", description: "e.g. com.example.app" },
+        name: { type: "string" },
+        platform: { type: "string", description: "IOS (default), MAC_OS, UNIVERSAL" },
+      },
+      required: ["identifier", "name"],
+    },
+    run: async (a) =>
+      client.post("/bundleIds", {
+        data: {
+          type: "bundleIds",
+          attributes: {
+            identifier: a.identifier,
+            name: a.name,
+            platform: a.platform || "IOS",
+          },
+        },
+      }),
+  },
+  {
+    name: "list_devices",
+    description: "List registered devices (UDIDs) for ad-hoc/development distribution.",
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "number", description: "Max (default 200)" } },
+    },
+    run: async (a) => {
+      const data = await client.getAll("/devices", { limit: a.limit ?? 200 });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "register_device",
+    description: "Register a device by UDID. platform: IOS (default) or MAC_OS.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        udid: { type: "string" },
+        platform: { type: "string", description: "IOS (default), MAC_OS" },
+      },
+      required: ["name", "udid"],
+    },
+    run: async (a) =>
+      client.post("/devices", {
+        data: {
+          type: "devices",
+          attributes: {
+            name: a.name,
+            udid: a.udid,
+            platform: a.platform || "IOS",
+          },
+        },
+      }),
+  },
+  {
+    name: "list_certificates",
+    description: "List code-signing certificates (development & distribution).",
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "number", description: "Max (default 200)" } },
+    },
+    run: async (a) => {
+      const data = await client.getAll("/certificates", { limit: a.limit ?? 200 });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "create_certificate",
+    description:
+      "Create a code-signing certificate from a CSR. You must generate the Certificate Signing Request yourself (openssl) and pass its PEM as csrContent. certificateType e.g. IOS_DEVELOPMENT, IOS_DISTRIBUTION, DEVELOPMENT, DISTRIBUTION.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        csrContent: { type: "string", description: "PEM contents of the CSR" },
+        certificateType: { type: "string" },
+      },
+      required: ["csrContent", "certificateType"],
+    },
+    run: async (a) =>
+      client.post("/certificates", {
+        data: {
+          type: "certificates",
+          attributes: {
+            csrContent: a.csrContent,
+            certificateType: a.certificateType,
+          },
+        },
+      }),
+  },
+  {
+    name: "revoke_certificate",
+    description: "Revoke (delete) a code-signing certificate by id.",
+    inputSchema: {
+      type: "object",
+      properties: { certificateId: { type: "string" } },
+      required: ["certificateId"],
+    },
+    run: async (a) => {
+      await client.delete(`/certificates/${a.certificateId}`);
+      return { revoked: a.certificateId };
+    },
+  },
+  {
+    name: "list_profiles",
+    description: "List provisioning profiles (includes the bundle id they target).",
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "number", description: "Max (default 200)" } },
+    },
+    run: async (a) => {
+      const data = await client.getAll("/profiles", {
+        limit: a.limit ?? 200,
+        include: "bundleId",
+      });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "create_profile",
+    description:
+      "Create a provisioning profile. profileType e.g. IOS_APP_DEVELOPMENT, IOS_APP_STORE, IOS_APP_ADHOC. Pass the bundleId resource id, plus certificate ids (and device ids for development/ad-hoc).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        profileType: { type: "string" },
+        bundleId: { type: "string", description: "bundleId resource id" },
+        certificateIds: { type: "array", items: { type: "string" } },
+        deviceIds: { type: "array", items: { type: "string" } },
+      },
+      required: ["name", "profileType", "bundleId", "certificateIds"],
+    },
+    run: async (a) => {
+      const relationships = {
+        bundleId: { data: { type: "bundleIds", id: a.bundleId } },
+        certificates: {
+          data: (a.certificateIds || []).map((id) => ({
+            type: "certificates",
+            id,
+          })),
+        },
+      };
+      if (a.deviceIds && a.deviceIds.length)
+        relationships.devices = {
+          data: a.deviceIds.map((id) => ({ type: "devices", id })),
+        };
+      return client.post("/profiles", {
+        data: {
+          type: "profiles",
+          attributes: { name: a.name, profileType: a.profileType },
+          relationships,
+        },
+      });
+    },
+  },
+  {
+    name: "download_profile",
+    description:
+      "Get a provisioning profile's contents (base64 .mobileprovision in profileContent) by id.",
+    inputSchema: {
+      type: "object",
+      properties: { profileId: { type: "string" } },
+      required: ["profileId"],
+    },
+    run: async (a) => {
+      const res = await client.get(`/profiles/${a.profileId}`);
+      return { id: res.data.id, ...res.data.attributes };
+    },
+  },
+  {
+    name: "delete_profile",
+    description: "Delete a provisioning profile by id.",
+    inputSchema: {
+      type: "object",
+      properties: { profileId: { type: "string" } },
+      required: ["profileId"],
+    },
+    run: async (a) => {
+      await client.delete(`/profiles/${a.profileId}`);
+      return { deleted: a.profileId };
+    },
+  },
+
+  // ---- Game Center ----
+  {
+    name: "list_game_center_leaderboards",
+    description:
+      "List Game Center leaderboards for an app (requires Game Center enabled on the app).",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const detail = await client.get(`/apps/${a.appId}/gameCenterDetail`);
+      const detailId = detail.data && detail.data.id;
+      if (!detailId)
+        return { note: "Game Center is not enabled for this app." };
+      const data = await client.getAll(
+        `/gameCenterDetails/${detailId}/gameCenterLeaderboards`,
+      );
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "list_game_center_achievements",
+    description:
+      "List Game Center achievements for an app (requires Game Center enabled on the app).",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const detail = await client.get(`/apps/${a.appId}/gameCenterDetail`);
+      const detailId = detail.data && detail.data.id;
+      if (!detailId)
+        return { note: "Game Center is not enabled for this app." };
+      const data = await client.getAll(
+        `/gameCenterDetails/${detailId}/gameCenterAchievements`,
+      );
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+
   // ---- Generic escape hatch ----
   {
     name: "raw_request",

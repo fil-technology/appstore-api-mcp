@@ -75,7 +75,7 @@ export class AppStoreConnectClient {
     return url;
   }
 
-  async request(method, path, { query, body } = {}) {
+  async request(method, path, { query, body, _attempt = 0 } = {}) {
     const token = await this._getToken();
     const url = this._buildUrl(path, query);
     const headers = { Authorization: `Bearer ${token}` };
@@ -85,6 +85,21 @@ export class AppStoreConnectClient {
       payload = JSON.stringify(body);
     }
     const res = await fetch(url, { method, headers, body: payload });
+
+    // Rate limiting: App Store Connect returns 429 when the hourly quota is hit.
+    // Respect Retry-After if present, else exponential backoff; retry a few times.
+    if ((res.status === 429 || res.status === 503) && _attempt < 4) {
+      const retryAfter = Number(res.headers.get("retry-after"));
+      const waitMs =
+        retryAfter > 0
+          ? retryAfter * 1000
+          : Math.min(1000 * 2 ** _attempt, 16000);
+      await new Promise((r) => setTimeout(r, waitMs));
+      return this.request(method, path, { query, body, _attempt: _attempt + 1 });
+    }
+    // Expose remaining quota for visibility (parsed from x-rate-limit header).
+    this.rateLimit = res.headers.get("x-rate-limit") || this.rateLimit;
+
     const text = await res.text();
     let data = null;
     if (text) {

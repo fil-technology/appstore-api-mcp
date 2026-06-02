@@ -250,7 +250,13 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | ⭐ `list_customer_reviews` / `reply_to_customer_review` | Read reviews (filter by rating/territory, shows if you've replied) and post public replies. |
 | ✈️ `list_builds` / `list_beta_groups` / `list_beta_testers` / `add_beta_tester` | TestFlight — builds, beta groups, testers, and inviting testers. |
 | 🛒 `list_in_app_purchases` / `get_app_price_schedule` / `list_available_territories` / `get_age_rating` | Catalog, pricing, territory availability, and age-rating. |
-| `raw_request` | Any method/path against the API — app previews, sales/finance edge cases, anything not above. |
+| 🔏 `list_bundle_ids` / `register_bundle_id` / `list_devices` / `register_device` / `list_certificates` / `create_certificate` / `revoke_certificate` / `list_profiles` / `create_profile` / `download_profile` / `delete_profile` | **Provisioning & code signing** — bundle IDs, devices, certificates, and provisioning profiles. |
+| 🎮 `list_game_center_leaderboards` / `list_game_center_achievements` | Game Center leaderboards & achievements. |
+| `raw_request` | Any method/path against the API — app previews, matchmaking, Xcode Cloud, anything not above. |
+
+> ⚙️ **Rate-limit aware:** the client automatically backs off and retries on
+> App Store Connect's `429` (hourly quota), so large sweeps (e.g. auditing 60+
+> apps) don't fall over.
 
 > 🛡️ **Dry-run:** the `update_*` tools accept `dryRun: true` — they return a field-by-field
 > diff (old → new) with length/limit checks and **write nothing**. Drop the flag to apply.

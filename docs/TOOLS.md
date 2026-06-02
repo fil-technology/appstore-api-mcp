@@ -310,6 +310,40 @@ Invites a tester by email (emails a real person — confirm first).
 ### get_age_rating
 - `appId` **(required)** — the app's age-rating declaration (content descriptors).
 
+## Provisioning & code signing
+
+### list_bundle_ids
+- `filterIdentifier`, `limit` (default 200)
+
+### register_bundle_id
+- `identifier` **(required)**, `name` **(required)**, `platform` (IOS/MAC_OS/UNIVERSAL)
+
+### list_devices / register_device
+- register: `name` **(required)**, `udid` **(required)**, `platform` (IOS/MAC_OS)
+
+### list_certificates / create_certificate / revoke_certificate
+- `create_certificate` needs a CSR you generate yourself (`csrContent` PEM) + `certificateType` (e.g. IOS_DISTRIBUTION).
+- `revoke_certificate` — `certificateId`.
+
+### list_profiles / create_profile / download_profile / delete_profile
+- `create_profile` — `name`, `profileType` (IOS_APP_DEVELOPMENT/IOS_APP_STORE/IOS_APP_ADHOC), `bundleId` (resource id), `certificateIds[]`, `deviceIds[]` (dev/ad-hoc).
+- `download_profile` — returns base64 `.mobileprovision` in `profileContent`.
+
+## Game Center
+
+### list_game_center_leaderboards / list_game_center_achievements
+- `appId` **(required)** — requires Game Center enabled on the app.
+
+---
+
+## Rate limits
+
+App Store Connect allows ~3,500 requests/hour and returns `429` when exceeded.
+The client handles this automatically: on `429`/`503` it waits (honoring
+`Retry-After` when present, else exponential backoff up to ~16 s) and retries up
+to 4 times. The latest `x-rate-limit` header is kept on the client for visibility.
+See <https://developer.apple.com/documentation/appstoreconnectapi/identifying-rate-limits>.
+
 ---
 
 ## Raw API access

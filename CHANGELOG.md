@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-06-02
+
+### Added
+- **Provisioning & code signing:** `list_bundle_ids`, `register_bundle_id`,
+  `list_devices`, `register_device`, `list_certificates`, `create_certificate`,
+  `revoke_certificate`, `list_profiles`, `create_profile`, `download_profile`,
+  `delete_profile`.
+- **Game Center:** `list_game_center_leaderboards`, `list_game_center_achievements`.
+- **Automatic rate-limit handling** — the client backs off and retries on `429`/`503`
+  (honoring `Retry-After`, else exponential backoff), so large multi-app sweeps
+  don't fail. The latest `x-rate-limit` header is exposed on the client.
+
 ## [1.3.0] - 2026-06-02
 
 ### Added
