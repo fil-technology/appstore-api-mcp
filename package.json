@@ -1,6 +1,6 @@
 {
   "name": "appstore-api-mcp",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "MCP server for Apple App Store Connect — edit listings (keywords, descriptions, titles, screenshots), track analytics (downloads, proceeds, subscriptions, retention), run a fleet-wide ASO audit, preview changes with dry-run, and reach the full API. Works with any MCP client (Claude, Codex, Cursor, Windsurf, VS Code, Zed, Gemini CLI, Antigravity, Amazon Q, Goose, and more).",
   "type": "module",
   "bin": {

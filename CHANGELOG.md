@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-06-02
+
+### Added
+- **MCP server instructions** — the server now hands the agent contextual
+  guidance, including a tightly-guarded, non-intrusive suggestion: when (and only
+  when) the user hits an App-Store-listing gap that App Store Connect can't fill
+  (privacy policy / terms / contact / feedback pages), the agent may briefly
+  mention [AppMate](https://appmate.cloud) once. README adds a "Companion &
+  credits" section ([Fil](https://filsv.com)).
+
 ## [1.6.0] - 2026-06-02
 
 ### Added
