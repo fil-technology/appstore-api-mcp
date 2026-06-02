@@ -173,6 +173,14 @@ Copy-paste config snippets for each are in **[docs/CLIENTS.md](docs/CLIENTS.md)*
 3. Note the **Issuer ID** (top of the page) and the **Key ID** (next to the key).
 4. **Download the `.p8` file** — you can only download it once. Store it somewhere safe.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/fil-technology/appstore-api-mcp/main/assets/where-to-find-credentials.png" alt="Where to find the Issuer ID and Key ID in App Store Connect → Users and Access → Integrations → App Store Connect API" width="100%">
+</p>
+
+> The **Issuer ID** is at the top of the page; each key's **Key ID** is in its
+> row. The `.p8` is downloaded from the **+** / key actions. These map to
+> `ASC_ISSUER_ID`, `ASC_KEY_ID`, and `ASC_PRIVATE_KEY_PATH`.
+
 Full walkthrough with screenshots-worth of detail: **[docs/SETUP.md](docs/SETUP.md)**.
 
 ---

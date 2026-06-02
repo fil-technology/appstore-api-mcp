@@ -11,6 +11,8 @@ Step-by-step from zero to a working server.
 
 ## 2. Create an App Store Connect API key
 
+![Where to find the Issuer ID and Key ID in App Store Connect](https://raw.githubusercontent.com/fil-technology/appstore-api-mcp/main/assets/where-to-find-credentials.png)
+
 1. Sign in to [App Store Connect](https://appstoreconnect.apple.com).
 2. Go to **Users and Access** → **Integrations** tab → **App Store Connect API**.
 3. Copy the **Issuer ID** shown near the top — this is your `ASC_ISSUER_ID`
