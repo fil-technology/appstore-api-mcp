@@ -1,11 +1,10 @@
 name: Publish to npm
 
-# Publishes to npm when a GitHub Release is published, OR when you push a
-# version tag like v1.2.3. (Publishing on *every commit* is intentionally
-# avoided — npm rejects re-publishing an unchanged version.)
+# Publishes to npm when you push a version tag like v1.2.3.
+# (Only the tag triggers a publish — creating a GitHub Release for the same tag
+# does NOT re-trigger it, so there's no double-publish. Publishing on *every
+# commit* is intentionally avoided — npm rejects re-publishing a version.)
 on:
-  release:
-    types: [published]
   push:
     tags:
       - "v*.*.*"
@@ -27,17 +26,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Guard — tag/release version must match package.json
+      - name: Guard — tag version must match package.json
         run: |
           REF="${GITHUB_REF_NAME#v}"
           PKG="$(node -p "require('./package.json').version")"
           if [ "$REF" != "$PKG" ]; then
-            echo "::error::Tag/release ($REF) does not match package.json version ($PKG)"
+            echo "::error::Tag ($REF) does not match package.json version ($PKG)"
             exit 1
           fi
-          echo "Publishing version $PKG"
+          echo "PKG_VERSION=$PKG" >> "$GITHUB_ENV"
+
+      - name: Skip if this version is already on npm
+        run: |
+          if npm view "appstore-api-mcp@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "appstore-api-mcp@${PKG_VERSION} is already published — skipping."
+            echo "ALREADY_PUBLISHED=true" >> "$GITHUB_ENV"
+          else
+            echo "ALREADY_PUBLISHED=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Publish
+        if: env.ALREADY_PUBLISHED == 'false'
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

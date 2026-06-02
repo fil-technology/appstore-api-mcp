@@ -39,33 +39,45 @@ versions — plus a raw-request tool that reaches the **entire**
 **Requirements:** Node.js ≥ 18 and an Apple Developer account with an
 [App Store Connect API key](#getting-your-api-key).
 
-### 🤖 Easiest: let your agent set it up
+### 🤖 Easiest: let your AI agent set it up (works with any agent)
 
-Don't want to touch config files? Paste the prompt in
-**[docs/AGENT-SETUP.md](docs/AGENT-SETUP.md)** into your coding agent, give it
-your Key ID, Issuer ID, and the **path** to your `.p8` file, and it configures
-everything for your client and verifies it. (Give the file *path*, not the key
-contents — that keeps the key off the transcript.)
+Don't want to touch config files? Paste this into your coding agent (Claude,
+Codex, Cursor, Windsurf, Antigravity, Gemini CLI, …), fill in your three values,
+and it will configure your client and verify it:
 
-Prefer to do it manually? Continue below.
+```text
+Set up the "appstore-api-mcp" App Store Connect MCP server for me.
 
-### Claude Code (CLI)
+My App Store Connect API credentials:
+- Key ID:    <YOUR_KEY_ID>
+- Issuer ID: <YOUR_ISSUER_ID>
+- Path to my .p8 private key file: <ABSOLUTE_PATH_TO_AuthKey_XXXX.p8>
 
-```bash
-# --scope user installs it for ALL your projects (recommended).
-# Remove the --scope user line to install for the current project only.
-claude mcp add appstore-api \
-  --scope user \
-  --env ASC_KEY_ID=YOUR_KEY_ID \
-  --env ASC_ISSUER_ID=YOUR_ISSUER_ID \
-  --env ASC_PRIVATE_KEY_PATH=/absolute/path/to/AuthKey_XXXXXXXXXX.p8 \
-  -- npx -y appstore-api-mcp
+Please:
+1. Detect which MCP client I'm using and add the server to its config. Run it
+   with: npx -y appstore-api-mcp
+2. Pass these env vars: ASC_KEY_ID, ASC_ISSUER_ID, and ASC_PRIVATE_KEY_PATH
+   (point ASC_PRIVATE_KEY_PATH at my .p8 path — reference the PATH, do not
+   inline the key contents).
+3. Install it at user/global scope (for Claude Code use `--scope user`).
+4. Do NOT print, echo, log, or commit the key. Keep the .p8 outside any git repo.
+5. When done, verify by listing my App Store apps and report the result.
+
+Config formats per client: https://github.com/fil-technology/appstore-api-mcp/blob/main/docs/CLIENTS.md
 ```
 
-### Any other MCP client (Cursor, Cline, Windsurf, VS Code, Zed, Continue, …)
+> Give the file **path**, not the key contents — that keeps the private key off
+> the chat transcript. More detail + a remote/cloud variant in
+> [docs/AGENT-SETUP.md](docs/AGENT-SETUP.md).
 
-Almost every client uses this same block (Claude Desktop config path:
-`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Prefer to do it manually? See below.
+
+### Manual setup — any MCP client
+
+This is a standard stdio MCP server, so **every** MCP client uses the same
+command (`npx -y appstore-api-mcp`) and the same three `ASC_*` env vars. Most
+clients (Cursor, Cline, Windsurf, Claude Desktop, Gemini CLI, Antigravity, …)
+take this exact block — just put it in that client's config file:
 
 ```json
 {
@@ -83,7 +95,24 @@ Almost every client uses this same block (Claude Desktop config path:
 }
 ```
 
-Restart the client, then ask it to *"list my App Store apps"* to confirm it works.
+A few clients differ (VS Code uses `servers`, Codex uses TOML, Zed uses
+`context_servers`) — see the [Supported clients](#supported-clients) table and
+[docs/CLIENTS.md](docs/CLIENTS.md) for each exact format/location.
+
+**Claude Code** has a one-line CLI shortcut instead of editing a file:
+
+```bash
+# --scope user installs it for ALL your projects (recommended).
+# Remove the --scope user line to install for the current project only.
+claude mcp add appstore-api \
+  --scope user \
+  --env ASC_KEY_ID=YOUR_KEY_ID \
+  --env ASC_ISSUER_ID=YOUR_ISSUER_ID \
+  --env ASC_PRIVATE_KEY_PATH=/absolute/path/to/AuthKey_XXXXXXXXXX.p8 \
+  -- npx -y appstore-api-mcp
+```
+
+After configuring, restart the client and ask it to *"list my App Store apps"* to confirm it works.
 
 ---
 

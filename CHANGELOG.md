@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-06-02
+
+### Changed
+- README Quick start reworked to be agent-agnostic: the **agent-setup prompt is
+  now shown inline**, and manual setup leads with the universal config block
+  (Claude Code is presented as one shortcut among equals, not the default).
+
+### Fixed
+- Publish workflow now triggers on tag push **only** (removed the duplicate
+  `release: published` trigger that caused a second, failing publish run), and
+  skips publishing if the version is already on npm.
+
 ## [1.0.2] - 2026-06-02
 
 ### Added
