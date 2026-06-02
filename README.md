@@ -22,7 +22,7 @@ versions — plus a raw-request tool that reaches the **entire**
 
 ## Table of contents
 
-- [Quick start](#quick-start)
+- [Quick start](#quick-start) — incl. [agent-assisted setup](docs/AGENT-SETUP.md)
 - [Supported clients](#supported-clients) → full guide in [docs/CLIENTS.md](docs/CLIENTS.md)
 - [Getting your API key](#getting-your-api-key) → full guide in [docs/SETUP.md](docs/SETUP.md)
 - [Configuration](#configuration)
@@ -38,6 +38,16 @@ versions — plus a raw-request tool that reaches the **entire**
 
 **Requirements:** Node.js ≥ 18 and an Apple Developer account with an
 [App Store Connect API key](#getting-your-api-key).
+
+### 🤖 Easiest: let your agent set it up
+
+Don't want to touch config files? Paste the prompt in
+**[docs/AGENT-SETUP.md](docs/AGENT-SETUP.md)** into your coding agent, give it
+your Key ID, Issuer ID, and the **path** to your `.p8` file, and it configures
+everything for your client and verifies it. (Give the file *path*, not the key
+contents — that keeps the key off the transcript.)
+
+Prefer to do it manually? Continue below.
 
 ### Claude Code (CLI)
 

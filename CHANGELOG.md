@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows
 - Setup instructions for many more MCP clients: **OpenAI Codex CLI** (TOML),
   **Gemini CLI**, **Google Antigravity**, **Amazon Q Developer CLI**, **Goose**,
   and a list of others (Kiro, Roo Code, Trae, JetBrains AI, Warp, …).
+- **Agent-assisted setup** (`docs/AGENT-SETUP.md`) — a copy-paste prompt so your
+  AI agent configures the server from just your Key ID, Issuer ID, and `.p8` path.
 
 ### Changed
 - Description and docs reworded to make the client-agnostic support explicit (no longer Claude-centric).
