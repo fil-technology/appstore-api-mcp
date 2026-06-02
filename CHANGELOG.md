@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-06-02
+
+### Added
+- **`bulk_update_version_localizations`** — update listing copy across many
+  locales at once (creates missing ones); `dryRun` to preview.
+- **`set_phased_release`** — control a version's 7-day gradual rollout (ACTIVE/PAUSE/COMPLETE).
+- **Pricing:** `list_app_price_points` (find a territory's price points) and
+  `set_app_price` (set base price from a price point).
+- **`list_app_store_version_experiments`** — Product Page Optimization A/B tests.
+
+### Changed
+- README tools table: removed emojis from the tool-name column and moved them
+  into the description column.
+
 ## [1.5.0] - 2026-06-02
 
 ### Added

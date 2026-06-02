@@ -1721,6 +1721,209 @@ const tools = [
       }),
   },
 
+  {
+    name: "set_phased_release",
+    description:
+      "Control a released version's phased (gradual 7-day) rollout. state: ACTIVE (start/resume), PAUSE, or COMPLETE (release to everyone now). Creates the phased release if one doesn't exist.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        versionId: { type: "string" },
+        state: { type: "string", description: "ACTIVE, PAUSE, or COMPLETE" },
+      },
+      required: ["versionId", "state"],
+    },
+    run: async (a) => {
+      let pr = null;
+      try {
+        pr = await client.get(
+          `/appStoreVersions/${a.versionId}/appStoreVersionPhasedRelease`,
+        );
+      } catch {
+        /* none yet */
+      }
+      if (pr && pr.data && pr.data.id)
+        return client.patch(`/appStoreVersionPhasedReleases/${pr.data.id}`, {
+          data: {
+            type: "appStoreVersionPhasedReleases",
+            id: pr.data.id,
+            attributes: { phasedReleaseState: a.state },
+          },
+        });
+      return client.post(`/appStoreVersionPhasedReleases`, {
+        data: {
+          type: "appStoreVersionPhasedReleases",
+          attributes: { phasedReleaseState: a.state },
+          relationships: {
+            appStoreVersion: {
+              data: { type: "appStoreVersions", id: a.versionId },
+            },
+          },
+        },
+      });
+    },
+  },
+
+  // ---- Bulk localization ----
+  {
+    name: "bulk_update_version_localizations",
+    description:
+      "Update an App Store version's listing copy across MANY locales in one call — creating locales that don't exist yet. Pass an array of { locale, description?, keywords?, promotionalText?, whatsNew?, marketingUrl?, supportUrl? }. The agent does the translating; this writes them all. Set dryRun:true to preview every create/update without writing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        versionId: { type: "string" },
+        locales: {
+          type: "array",
+          items: { type: "object", additionalProperties: true },
+          description: "Array of { locale, ...fields } objects",
+        },
+        dryRun: { type: "boolean", description: "Preview without writing" },
+      },
+      required: ["versionId", "locales"],
+    },
+    run: async (a) => {
+      const existing = await client.getAll(
+        `/appStoreVersions/${a.versionId}/appStoreVersionLocalizations`,
+      );
+      const byLocale = Object.fromEntries(
+        existing.map((x) => [x.attributes.locale, x]),
+      );
+      const FIELDS = [
+        "description",
+        "keywords",
+        "promotionalText",
+        "whatsNew",
+        "marketingUrl",
+        "supportUrl",
+      ];
+      const results = [];
+      for (const item of a.locales) {
+        const { locale } = item;
+        const attributes = {};
+        for (const k of FIELDS)
+          if (item[k] !== undefined) attributes[k] = item[k];
+        const warnings = validateAttributes(attributes);
+        const ex = byLocale[locale];
+        if (a.dryRun) {
+          results.push({
+            locale,
+            action: ex ? "update" : "create",
+            changes: ex
+              ? buildDiff(ex.attributes, attributes)
+              : Object.entries(attributes).map(([field, to]) => ({ field, to })),
+            warnings,
+          });
+          continue;
+        }
+        if (ex) {
+          await client.patch(
+            `/appStoreVersionLocalizations/${ex.id}`,
+            { data: { type: "appStoreVersionLocalizations", id: ex.id, attributes } },
+          );
+          results.push({ locale, action: "updated", id: ex.id, warnings });
+        } else {
+          const created = await client.post(`/appStoreVersionLocalizations`, {
+            data: {
+              type: "appStoreVersionLocalizations",
+              attributes: { locale, ...attributes },
+              relationships: {
+                appStoreVersion: {
+                  data: { type: "appStoreVersions", id: a.versionId },
+                },
+              },
+            },
+          });
+          results.push({ locale, action: "created", id: created.data.id, warnings });
+        }
+      }
+      return { dryRun: !!a.dryRun, count: results.length, results };
+    },
+  },
+
+  // ---- Pricing ----
+  {
+    name: "list_app_price_points",
+    description:
+      "List available price points for an app in a territory — each has a customerPrice and your proceeds, plus the pricePointId to use with set_app_price.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        territory: { type: "string", description: "3-letter code, e.g. USA" },
+        limit: { type: "number", description: "Max (default 200)" },
+      },
+      required: ["appId", "territory"],
+    },
+    run: async (a) => {
+      const data = await client.getAll(`/apps/${a.appId}/appPricePoints`, {
+        "filter[territory]": a.territory,
+        limit: Math.min(a.limit ?? 200, 200),
+      });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "set_app_price",
+    description:
+      "Set an app's base price by creating a new price schedule from a price point (get one via list_app_price_points). NOTE: this changes LIVE pricing — confirm with the user. Optional startDate (YYYY-MM-DD) to schedule; omit for immediate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        baseTerritory: { type: "string", description: "3-letter code, e.g. USA" },
+        pricePointId: { type: "string" },
+        startDate: { type: "string", description: "YYYY-MM-DD (optional)" },
+      },
+      required: ["appId", "baseTerritory", "pricePointId"],
+    },
+    run: async (a) => {
+      const lid = "new-manual-price";
+      return client.post(`/appPriceSchedules`, {
+        data: {
+          type: "appPriceSchedules",
+          relationships: {
+            app: { data: { type: "apps", id: a.appId } },
+            baseTerritory: {
+              data: { type: "territories", id: a.baseTerritory },
+            },
+            manualPrices: { data: [{ type: "appPrices", id: lid }] },
+          },
+        },
+        included: [
+          {
+            type: "appPrices",
+            id: lid,
+            attributes: a.startDate ? { startDate: a.startDate } : {},
+            relationships: {
+              appPricePoint: {
+                data: { type: "appPricePoints", id: a.pricePointId },
+              },
+            },
+          },
+        ],
+      });
+    },
+  },
+
+  // ---- Product Page Optimization (A/B testing) ----
+  {
+    name: "list_app_store_version_experiments",
+    description:
+      "List Product Page Optimization A/B tests (App Store version experiments) for an app — name, state, traffic proportion, and start/end.",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const data = await client.getAll(
+        `/apps/${a.appId}/appStoreVersionExperimentsV2`,
+      );
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+
   // ---- Code-signing health ----
   {
     name: "signing_health",

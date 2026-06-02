@@ -231,32 +231,29 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | Tool | What it does |
 | --- | --- |
 | `list_apps` / `get_app` | Browse your apps |
-| `list_app_infos` | Find the record holding name/subtitle/privacy localizations |
-| `list_app_info_localizations` | Read name, subtitle, privacy policy per locale |
-| `update_app_info_localization` | Update **name, subtitle, privacy policy** |
-| `create_app_info_localization` | Add a new locale's name/subtitle |
-| `list_app_store_versions` | List versions and their states |
-| `create_app_store_version` | Start a new version to prepare for submission |
-| `list_app_store_version_localizations` | Read description/keywords/etc. per locale |
-| `get_app_store_version_localization` | Read one locale's listing copy |
-| `update_app_store_version_localization` | Update **keywords, description, promo text, what's-new, URLs** |
-| `create_app_store_version_localization` | Add a new locale to a version |
+| `list_app_infos` / `list_app_info_localizations` | Find/read the record holding name, subtitle & privacy policy per locale |
+| `update_app_info_localization` / `create_app_info_localization` | Update or add a locale's **name, subtitle, privacy policy** |
+| `list_app_store_versions` / `create_app_store_version` | List versions and their states; start a new version |
+| `list_app_store_version_localizations` / `get_app_store_version_localization` | Read description / keywords / etc. per locale |
+| `update_app_store_version_localization` / `create_app_store_version_localization` | Update or add a locale's **keywords, description, promo text, what's-new, URLs** |
+| `bulk_update_version_localizations` | 🌍 Update listing copy across **many locales at once** (creates missing ones); `dryRun` to preview |
 | `list_screenshot_sets` / `create_screenshot_set` | Manage per-device screenshot sets |
 | `list_screenshots` / `upload_screenshot` / `delete_screenshot` | Manage screenshots (upload handles the full reserve→upload→commit flow) |
-| 👁️ `get_screenshot` | Fetch a live screenshot **as an image the agent can see** — review/compare what's currently on a listing |
-| 🚀 `audit_apps` | **Fleet health check** — scan all (or selected) apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots, and more. Read-only. |
-| 📊 `get_sales_report` / `get_subscription_report` / `get_finance_report` | Units/downloads, proceeds, **subscriptions & retention**, earnings by region (parsed rows). Needs a Vendor Number + a key with Admin/Finance/Sales role. |
-| 📈 `request_analytics_report` → `list_analytics_reports` → `list_analytics_report_instances` → `get_analytics_report_data` | The async Analytics Reports API — downloads, sessions, active devices, App Store engagement. |
-| ⭐ `list_customer_reviews` / `reply_to_customer_review` | Read reviews (filter by rating/territory, shows if you've replied) and post public replies. |
-| ✈️ `list_builds` / `list_beta_groups` / `list_beta_testers` / `add_beta_tester` | TestFlight — builds, beta groups, testers, and inviting testers. |
-| 🛒 `list_in_app_purchases` / `get_app_price_schedule` / `list_available_territories` / `get_age_rating` | Catalog, pricing, territory availability, and age-rating. |
-| 🔏 `list_bundle_ids` / `register_bundle_id` / `list_devices` / `register_device` / `list_certificates` / `create_certificate` / `revoke_certificate` / `list_profiles` / `create_profile` / `download_profile` / `delete_profile` | **Provisioning & code signing** — bundle IDs, devices, certificates, and provisioning profiles. |
-| 🎮 `list_game_center_leaderboards` / `list_game_center_achievements` | Game Center leaderboards & achievements. |
-| 🗂️ `apps_review_status` | **Fleet review board** — every app's current version + state (waiting/in-review/rejected/ready) in one call. |
-| 🚀 `submit_for_review` / `release_version` | Submit a version to Apple review (full flow) and release an approved build. |
-| 🔐 `signing_health` | Flag **certificates & profiles expiring soon** (or invalid) across the account — catches CI breakage early. |
-| `update_in_app_purchase` | Update an IAP's reference name / review note. |
-| `raw_request` | Any method/path against the API — app previews, matchmaking, Xcode Cloud, anything not above. |
+| `get_screenshot` | 👁️ Fetch a live screenshot **as an image the agent can see** — review/compare what's on a listing |
+| `audit_apps` | 🩺 **Fleet ASO audit** — scan all apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots. Read-only |
+| `apps_review_status` | 🗂️ **Fleet review board** — every app's current version + state (waiting / in-review / rejected / ready) in one call |
+| `submit_for_review` / `release_version` / `set_phased_release` | 🚀 Submit a version to Apple review (full flow), release an approved build, and control phased rollout |
+| `get_sales_report` / `get_subscription_report` / `get_finance_report` | 📊 Units/downloads, proceeds, **subscriptions & retention**, earnings by region. Needs a Vendor Number + Admin/Finance/Sales key |
+| `request_analytics_report` → `list_analytics_reports` → `list_analytics_report_instances` → `get_analytics_report_data` | 📈 The async Analytics Reports API — downloads, sessions, active devices, App Store engagement |
+| `list_customer_reviews` / `reply_to_customer_review` | ⭐ Read reviews (filter by rating/territory, shows if you've replied) and post public replies |
+| `list_builds` / `list_beta_groups` / `list_beta_testers` / `add_beta_tester` | ✈️ TestFlight — builds, beta groups, testers, and inviting testers |
+| `list_in_app_purchases` / `update_in_app_purchase` | 🛒 In-app purchase products — list and edit name / review note |
+| `list_app_price_points` / `set_app_price` / `get_app_price_schedule` / `list_available_territories` / `get_age_rating` | 💵 Pricing (find price points, set base price), territory availability, and age rating |
+| `list_app_store_version_experiments` | 🧪 Product Page Optimization — list A/B tests (experiments) |
+| `list_game_center_leaderboards` / `list_game_center_achievements` | 🎮 Game Center leaderboards & achievements |
+| `signing_health` | 🔐 Flag **certificates & profiles expiring soon** (or invalid) across the account — catches CI breakage early |
+| `list_bundle_ids` / `register_bundle_id` / `list_devices` / `register_device` / `list_certificates` / `create_certificate` / `revoke_certificate` / `list_profiles` / `create_profile` / `download_profile` / `delete_profile` | 🔏 **Provisioning & code signing** — bundle IDs, devices, certificates, and provisioning profiles |
+| `raw_request` | 🧰 Any method/path against the API — app previews, matchmaking, Xcode Cloud, anything not above |
 
 > ⚙️ **Rate-limit aware:** the client automatically backs off and retries on
 > App Store Connect's `429` (hourly quota), so large sweeps (e.g. auditing 60+

@@ -327,8 +327,35 @@ Release an approved version waiting for manual release (PENDING_DEVELOPER_RELEAS
 **Makes it live — confirm first.**
 - `versionId` **(required)**
 
+### set_phased_release
+Control a version's 7-day gradual rollout.
+- `versionId` **(required)**, `state` **(required)** — `ACTIVE`, `PAUSE`, `COMPLETE`
+
 ### update_in_app_purchase
 - `inAppPurchaseId` **(required)**, `name`, `reviewNote`
+
+## Bulk localization
+
+### bulk_update_version_localizations
+Update listing copy across many locales in one call (creates missing locales).
+The agent does the translating; this writes them.
+- `versionId` **(required)**
+- `locales` **(required)** — array of `{ locale, description?, keywords?, promotionalText?, whatsNew?, marketingUrl?, supportUrl? }`
+- `dryRun` — preview every create/update without writing
+
+## Pricing
+
+### list_app_price_points
+- `appId` **(required)**, `territory` **(required)** — each point has `customerPrice`, proceeds, and the `id` for `set_app_price`.
+
+### set_app_price
+Creates a new price schedule from a price point. **Changes live pricing — confirm first.**
+- `appId` **(required)**, `baseTerritory` **(required)**, `pricePointId` **(required)**, `startDate` (YYYY-MM-DD, optional)
+
+## Product Page Optimization
+
+### list_app_store_version_experiments
+- `appId` **(required)** — A/B tests with name, state, traffic proportion, start/end.
 
 ## Code-signing health
 
