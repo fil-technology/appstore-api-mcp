@@ -46,7 +46,7 @@ claude mcp add appstore-connect \
   --env ASC_KEY_ID=YOUR_KEY_ID \
   --env ASC_ISSUER_ID=YOUR_ISSUER_ID \
   --env ASC_PRIVATE_KEY_PATH=$HOME/.appstoreconnect/AuthKey_XXXXXXXXXX.p8 \
-  -- npx -y storemate-mcp
+  -- npx -y appstore-api-mcp
 ```
 
 `--scope user` makes it available in all projects. Drop it to scope to the current project only.
@@ -60,7 +60,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "appstore-connect": {
       "command": "npx",
-      "args": ["-y", "storemate-mcp"],
+      "args": ["-y", "appstore-api-mcp"],
       "env": {
         "ASC_KEY_ID": "YOUR_KEY_ID",
         "ASC_ISSUER_ID": "YOUR_ISSUER_ID",

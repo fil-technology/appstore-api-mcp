@@ -1,10 +1,10 @@
 {
-  "name": "storemate-mcp",
+  "name": "appstore-api-mcp",
   "version": "1.0.0",
   "description": "MCP server for Apple App Store Connect — manage apps, keywords, descriptions, titles, screenshots, versions and the full API from Claude and other MCP clients. Includes a fleet-wide ASO audit and dry-run previews.",
   "type": "module",
   "bin": {
-    "storemate-mcp": "src/index.js"
+    "appstore-api-mcp": "src/index.js"
   },
   "main": "src/index.js",
   "files": [
@@ -21,7 +21,6 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "storemate",
     "app-store-connect",
     "appstore",
     "app-store",
@@ -38,11 +37,11 @@
   "author": "Sviatoslav Fil",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fil-technology/storemate-mcp.git"
+    "url": "git+https://github.com/fil-technology/appstore-api-mcp.git"
   },
-  "homepage": "https://github.com/fil-technology/storemate-mcp#readme",
+  "homepage": "https://github.com/fil-technology/appstore-api-mcp#readme",
   "bugs": {
-    "url": "https://github.com/fil-technology/storemate-mcp/issues"
+    "url": "https://github.com/fil-technology/appstore-api-mcp/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
