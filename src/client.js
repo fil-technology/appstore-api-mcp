@@ -157,6 +157,9 @@ export class AppStoreConnectClient {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/a-gzip" },
     });
     const buf = Buffer.from(await res.arrayBuffer());
+    // 404 from a report endpoint means "no data for this report/date" — not a
+    // failure. Return empty so callers get an empty result, not an error.
+    if (res.status === 404) return "";
     if (!res.ok) {
       let detail = buf.toString("utf8");
       try {

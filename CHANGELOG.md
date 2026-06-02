@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-06-02
+
+### Fixed
+- Report tools now treat a `404` ("no data for this report/date") as a clean
+  empty result with an explanatory `note`, instead of surfacing it as an error.
+  Validated end-to-end with an Admin key: sales, subscriptions, finance, and the
+  Analytics Reports API all return real data.
+
 ## [1.1.1] - 2026-06-02
 
 ### Changed

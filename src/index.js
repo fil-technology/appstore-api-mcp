@@ -134,7 +134,7 @@ const DEFAULT_VENDOR = process.env.ASC_VENDOR_NUMBER;
 /** Cap parsed report rows so large reports don't flood the response. */
 function reportResult(reportType, parsed, limit = 200) {
   const rows = parsed.rows;
-  return {
+  const out = {
     reportType,
     columns: parsed.columns,
     rowCount: rows.length,
@@ -142,6 +142,10 @@ function reportResult(reportType, parsed, limit = 200) {
     truncated: rows.length > limit,
     rows: rows.slice(0, limit),
   };
+  if (rows.length === 0)
+    out.note =
+      "No data found for the requested report/date. The period may have no activity, or the data isn't available yet (reports lag ~1 day). Check the date and frequency format.";
+  return out;
 }
 
 function requireVendor(v) {
