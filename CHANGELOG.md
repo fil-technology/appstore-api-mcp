@@ -4,14 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-06-02
+
+### Added
+- Setup instructions for more MCP clients: **Google Antigravity**,
+  **Amazon Q Developer CLI**, **Goose**, and a list of others (Kiro, Roo Code,
+  Trae, JetBrains AI, Warp, …).
+- **Agent-assisted setup** (`docs/AGENT-SETUP.md`) — a copy-paste prompt so your
+  AI agent configures the server from just your Key ID, Issuer ID, and `.p8` path.
+- `.github/workflows/npm-publish.yml` — publish to npm on version-tag push /
+  release, with provenance and a version-match guard.
+
+### Changed
+- Install docs default to `--scope user` (global) with an opt-out comment for
+  project-only installs; fixed stale server aliases.
+
 ## [1.0.1] - 2026-06-02
 
 ### Added
-- Setup instructions for many more MCP clients: **OpenAI Codex CLI** (TOML),
-  **Gemini CLI**, **Google Antigravity**, **Amazon Q Developer CLI**, **Goose**,
-  and a list of others (Kiro, Roo Code, Trae, JetBrains AI, Warp, …).
-- **Agent-assisted setup** (`docs/AGENT-SETUP.md`) — a copy-paste prompt so your
-  AI agent configures the server from just your Key ID, Issuer ID, and `.p8` path.
+- Setup instructions for **OpenAI Codex CLI** (TOML config) and **Gemini CLI**.
 
 ### Changed
 - Description and docs reworded to make the client-agnostic support explicit (no longer Claude-centric).
