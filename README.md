@@ -14,8 +14,9 @@
 **Run App Store Connect by talking to your AI.** An
 [MCP](https://modelcontextprotocol.io) server that turns Apple's
 [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi)
-into plain-language actions — edit your listings, audit your whole portfolio,
-and reach the entire API, from whatever AI agent you already use.
+into plain-language actions — edit your listings, **track downloads, revenue &
+subscriptions**, audit your whole portfolio, and reach the entire API, from
+whatever AI agent you already use.
 
 ### ✨ What makes it stand out
 

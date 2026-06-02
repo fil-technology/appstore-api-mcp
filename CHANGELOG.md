@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.3] - 2026-06-02
+
+### Changed
+- Lead with analytics in the package/repo description, README one-liner, and
+  keywords — downloads, revenue, and subscriptions are now front and center.
+
 ## [1.1.2] - 2026-06-02
 
 ### Fixed
