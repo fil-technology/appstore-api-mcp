@@ -73,7 +73,42 @@ per app so I can prioritize the wins on apps that actually get traffic.
 Uses: `aso_opportunity_report`, `audit_apps`, `portfolio_growth_report`,
 `get_sales_report`.
 
-## 6. Build & ship (Mac only)
+## 6. ASO research → dry-run apply
+
+The App Store Connect API has no competitor or keyword-volume data, so the
+**research** is the agent's job (web/app-page reading or an ASO API you have).
+This MCP handles reading your current listing and applying the result safely.
+
+**a) Keyword expansion**
+```text
+For AppName, show the current keyword field and how many of the 100 characters
+are used. Research 10–15 high-intent keywords for this app's category (use web
+search if available), pick the best set that fits 100 chars without duplicating
+words already in the title/subtitle, and dry-run the new keyword field so I can
+approve before it's written.
+```
+
+**b) Competitor positioning**
+```text
+Here are 3 competitors for AppName: [App A], [App B], [App C]. Look at their App
+Store titles, subtitles, and how they position the app. Compare to AppName's
+current title/subtitle/keywords, point out gaps, and propose an improved subtitle
+(<=30 chars) and keyword set. Dry-run the changes; don't write until I confirm.
+```
+
+**c) Localized keyword spread**
+```text
+AppName ranks only in en-US. Propose localized keyword sets for en-GB, en-CA, and
+en-AU that use each store's keyword field for *additional* terms (a known ASO
+trick — extra locales add searchable keywords). Dry-run a bulk localization update
+across those locales and show me the diff first.
+```
+
+Uses: `get_app_store_version_localization`, `list_app_info_localizations`,
+`update_app_store_version_localization` (with `dryRun`),
+`bulk_update_version_localizations`, `aso_opportunity_report`.
+
+## 7. Build & ship (Mac only)
 
 ```text
 Bump AppName's build number, archive it, and upload the new build to App Store

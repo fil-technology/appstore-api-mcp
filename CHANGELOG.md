@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.1] - 2026-06-02
+
+### Added
+- **ASO research prompt pack** in `docs/RECIPES.md` — keyword expansion,
+  competitor positioning, and localized keyword spread, each ending in a dry-run
+  apply (the research is agent-side; App Store Connect exposes no competitor data).
+
 ## [1.9.0] - 2026-06-02
 
 ### Added
