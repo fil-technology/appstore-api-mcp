@@ -54,33 +54,43 @@
   <text x="330" y="222" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="62" font-weight="700" fill="#ffffff">appstore-api-mcp</text>
 
   <!-- tagline -->
-  <text x="332" y="276" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" font-weight="500" fill="#c7d2fe">Manage your App Store Connect listings — from any AI agent.</text>
+  <text x="332" y="276" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" font-weight="500" fill="#c7d2fe">Manage listings &amp; track analytics — from any AI agent.</text>
 
   <!-- feature chips -->
   <g font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="600">
+    <!-- row 1 -->
     <g transform="translate(332,330)">
-      <rect x="0" y="0" width="148" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
-      <text x="74" y="29" text-anchor="middle" fill="#9fc1ff">keywords</text>
+      <rect x="0" y="0" width="144" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
+      <text x="72" y="29" text-anchor="middle" fill="#9fc1ff">keywords</text>
     </g>
-    <g transform="translate(492,330)">
-      <rect x="0" y="0" width="172" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
-      <text x="86" y="29" text-anchor="middle" fill="#9fc1ff">descriptions</text>
+    <g transform="translate(490,330)">
+      <rect x="0" y="0" width="184" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
+      <text x="92" y="29" text-anchor="middle" fill="#9fc1ff">descriptions</text>
     </g>
-    <g transform="translate(676,330)">
+    <g transform="translate(688,330)">
       <rect x="0" y="0" width="172" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
       <text x="86" y="29" text-anchor="middle" fill="#9fc1ff">screenshots</text>
     </g>
-    <g transform="translate(860,330)">
+    <g transform="translate(874,330)">
       <rect x="0" y="0" width="150" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
       <text x="75" y="29" text-anchor="middle" fill="#9fc1ff">ASO audit</text>
     </g>
+    <!-- row 2 — incl. new analytics features (accent border) -->
     <g transform="translate(332,388)">
-      <rect x="0" y="0" width="138" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
-      <text x="69" y="29" text-anchor="middle" fill="#9fc1ff">dry-run</text>
+      <rect x="0" y="0" width="150" height="44" rx="22" fill="#0e2a3a" stroke="#22d3ee"/>
+      <text x="75" y="29" text-anchor="middle" fill="#67e8f9">analytics</text>
     </g>
-    <g transform="translate(482,388)">
-      <rect x="0" y="0" width="158" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
-      <text x="79" y="29" text-anchor="middle" fill="#9fc1ff">full API</text>
+    <g transform="translate(496,388)">
+      <rect x="0" y="0" width="196" height="44" rx="22" fill="#0e2a3a" stroke="#22d3ee"/>
+      <text x="98" y="29" text-anchor="middle" fill="#67e8f9">subscriptions</text>
+    </g>
+    <g transform="translate(706,388)">
+      <rect x="0" y="0" width="152" height="44" rx="22" fill="#0e2a3a" stroke="#22d3ee"/>
+      <text x="76" y="29" text-anchor="middle" fill="#67e8f9">downloads</text>
+    </g>
+    <g transform="translate(872,388)">
+      <rect x="0" y="0" width="132" height="44" rx="22" fill="#13214a" stroke="#27407e"/>
+      <text x="66" y="29" text-anchor="middle" fill="#9fc1ff">dry-run</text>
     </g>
   </g>
 
