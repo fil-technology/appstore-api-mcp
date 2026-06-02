@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { gunzipSync } from "node:zlib";
 import { importPKCS8, SignJWT } from "jose";
 
 const BASE_URL = "https://api.appstoreconnect.apple.com";
@@ -54,8 +55,7 @@ export class AppStoreConnectClient {
    * Core request. `path` may be a full URL (e.g. a paging `next` link) or a
    * path relative to the API root, with or without the leading /v1.
    */
-  async request(method, path, { query, body } = {}) {
-    const token = await this._getToken();
+  _buildUrl(path, query) {
     let url;
     if (/^https?:\/\//.test(path)) {
       url = new URL(path);
@@ -72,6 +72,12 @@ export class AppStoreConnectClient {
         url.searchParams.set(k, Array.isArray(v) ? v.join(",") : String(v));
       }
     }
+    return url;
+  }
+
+  async request(method, path, { query, body } = {}) {
+    const token = await this._getToken();
+    const url = this._buildUrl(path, query);
     const headers = { Authorization: `Bearer ${token}` };
     let payload;
     if (body !== undefined) {
@@ -131,6 +137,72 @@ export class AppStoreConnectClient {
       pages++;
     }
     return all;
+  }
+
+  /** True if the buffer starts with the gzip magic bytes. */
+  static _isGzip(buf) {
+    return buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b;
+  }
+
+  /**
+   * GET a report endpoint (salesReports / financeReports) that returns a
+   * gzip-compressed TSV. Returns the decompressed text. On error, the API
+   * sends JSON instead of gzip — surfaced as a readable Error.
+   */
+  async getReport(path, query) {
+    const token = await this._getToken();
+    const url = this._buildUrl(path, query);
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/a-gzip" },
+    });
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!res.ok) {
+      let detail = buf.toString("utf8");
+      try {
+        const j = JSON.parse(detail);
+        if (j.errors)
+          detail = j.errors
+            .map((e) => `${e.status} ${e.code}: ${e.title} — ${e.detail}`)
+            .join("; ");
+      } catch {
+        /* leave detail as text */
+      }
+      const err = new Error(
+        `App Store Connect report ${url.pathname} failed: ${res.status} ${res.statusText} — ${detail}`,
+      );
+      err.status = res.status;
+      throw err;
+    }
+    return AppStoreConnectClient._isGzip(buf)
+      ? gunzipSync(buf).toString("utf8")
+      : buf.toString("utf8");
+  }
+
+  /** Download a (possibly gzipped) report/segment file from a pre-signed URL. */
+  async downloadUrl(url) {
+    const res = await fetch(url);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!res.ok)
+      throw new Error(`Download failed (${res.status}) for ${url}`);
+    return AppStoreConnectClient._isGzip(buf)
+      ? gunzipSync(buf).toString("utf8")
+      : buf.toString("utf8");
+  }
+
+  /** Parse TSV/CSV text into an array of row objects. Auto-detects delimiter. */
+  static parseDelimited(text, delimiter) {
+    const lines = text.split(/\r?\n/).filter((l) => l.length > 0);
+    if (lines.length === 0) return { columns: [], rows: [] };
+    const d = delimiter || (lines[0].includes("\t") ? "\t" : ",");
+    const columns = lines[0].split(d);
+    const rows = lines.slice(1).map((line) => {
+      const cells = line.split(d);
+      const row = {};
+      columns.forEach((c, i) => (row[c] = cells[i]));
+      return row;
+    });
+    return { columns, rows };
   }
 
   /**

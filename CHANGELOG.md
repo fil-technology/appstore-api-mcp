@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-06-02
+
+### Added
+- **Analytics, sales, subscriptions & finance reporting:**
+  - `get_sales_report` — units/downloads, proceeds, and subscription data (Sales & Trends).
+  - `get_subscription_report` — active subscribers, events, and per-subscriber detail.
+  - `get_finance_report` — proceeds/earnings by region.
+  - `request_analytics_report` + `list_analytics_reports` +
+    `list_analytics_report_instances` + `get_analytics_report_data` — the async
+    Analytics Reports API (downloads, sessions, active devices, engagement).
+  - Gzip/TSV/CSV handling in the client so report files are decompressed and
+    returned as parsed rows.
+  - Optional `ASC_VENDOR_NUMBER` env var as a default for sales/finance reports.
+  - Friendly 403 hint: report APIs need a key with the Admin, Finance, or Sales
+    role (App Manager is not sufficient).
+
 ## [1.0.4] - 2026-06-02
 
 ### Changed

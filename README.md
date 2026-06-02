@@ -23,7 +23,9 @@ and reach the entire API, from whatever AI agent you already use.
 
 > **🛡️ See every change before it ships.** Dry-run mode returns the exact diff (old → new) with Apple's character limits pre-checked, so nothing hits your **live** listing by surprise.
 
-> **🌐 The whole API, not a curated slice.** First-class tools for the daily work (keywords, descriptions, titles, subtitles, screenshots, versions) **plus** a `raw_request` escape hatch for everything else — TestFlight, pricing, in-app purchases, customer reviews (read & reply), sales & analytics.
+> **📊 Track performance, not just listings.** Pull downloads, proceeds, **subscriptions & retention**, and engagement straight from the Sales, Finance, and Analytics report APIs — parsed into rows, gzip handled for you.
+
+> **🌐 The whole API, not a curated slice.** First-class tools for the daily work (keywords, descriptions, titles, subtitles, screenshots, versions) **plus** a `raw_request` escape hatch for everything else — TestFlight, pricing, in-app purchases, customer reviews (read & reply), and more.
 
 ### 💬 Just ask
 
@@ -205,8 +207,14 @@ All configuration is via environment variables.
 | `ASC_PRIVATE_KEY_PATH` | one of these three | Absolute path to the `.p8` file |
 | `ASC_PRIVATE_KEY` | one of these three | The raw PEM contents of the key |
 | `ASC_PRIVATE_KEY_BASE64` | one of these three | Base64 of the `.p8` (`base64 -i AuthKey.p8`) — easiest for env vars |
+| `ASC_VENDOR_NUMBER` | optional | Default Vendor Number for sales/finance reports (8–9 digits; App Store Connect → Payments and Financial Reports) |
 
 See [.env.example](.env.example) for a copy-paste template.
+
+> **Reports need a higher-privilege key.** The sales/subscription/finance/analytics
+> tools require an API key with the **Admin, Finance, or Sales** role — an **App
+> Manager** key (fine for metadata/keywords/screenshots) returns `403` for reports.
+> Generate a separate report-capable key if you need analytics.
 
 ---
 
@@ -231,7 +239,9 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | `list_screenshot_sets` / `create_screenshot_set` | Manage per-device screenshot sets |
 | `list_screenshots` / `upload_screenshot` / `delete_screenshot` | Manage screenshots (upload handles the full reserve→upload→commit flow) |
 | 🚀 `audit_apps` | **Fleet health check** — scan all (or selected) apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots, and more. Read-only. |
-| `raw_request` | Any method/path against the API — previews, pricing, TestFlight, IAP, reviews, analytics, sales reports, … |
+| 📊 `get_sales_report` / `get_subscription_report` / `get_finance_report` | Units/downloads, proceeds, **subscriptions & retention**, earnings by region (parsed rows). Needs a Vendor Number + a key with Admin/Finance/Sales role. |
+| 📈 `request_analytics_report` → `list_analytics_reports` → `list_analytics_report_instances` → `get_analytics_report_data` | The async Analytics Reports API — downloads, sessions, active devices, App Store engagement. |
+| `raw_request` | Any method/path against the API — previews, pricing, TestFlight, IAP, reviews, … |
 
 > 🛡️ **Dry-run:** the `update_*` tools accept `dryRun: true` — they return a field-by-field
 > diff (old → new) with length/limit checks and **write nothing**. Drop the flag to apply.

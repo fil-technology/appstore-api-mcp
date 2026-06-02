@@ -200,6 +200,64 @@ length warnings are attached to the response under `_warnings`.
 
 ---
 
+## Analytics, sales, subscriptions & finance
+
+> **Permissions:** these tools require an API key with the **Admin, Finance, or
+> Sales** role. An **App Manager** key returns `403`. Sales/finance also need a
+> **Vendor Number** (App Store Connect → Payments and Financial Reports; 8–9
+> digits) — pass `vendorNumber` or set the `ASC_VENDOR_NUMBER` env var.
+
+All report tools return `{ reportType, columns, rowCount, returned, truncated, rows }`
+with `rows` capped at `limit` (default 200).
+
+### get_sales_report
+Units/downloads, proceeds, and subscription data from Sales & Trends.
+- `reportDate` **(required)** — `YYYY-MM-DD` (daily/weekly), `YYYY-MM` (monthly), `YYYY` (yearly)
+- `vendorNumber` — or `ASC_VENDOR_NUMBER`
+- `frequency` — `DAILY` (default), `WEEKLY`, `MONTHLY`, `YEARLY`
+- `reportType` — `SALES` (default), `SUBSCRIPTION`, `SUBSCRIBER`, `SUBSCRIPTION_EVENT`, `INSTALLS`, …
+- `reportSubType` — `SUMMARY` (default) or `DETAILED`
+- `version` — report-version override (e.g. `1_1` for SALES, `1_4` for subscriptions)
+- `limit` — max rows (default 200)
+
+### get_subscription_report
+Convenience wrapper for subscription analytics (DAILY only).
+- `reportDate` **(required)** — `YYYY-MM-DD`
+- `kind` — `ACTIVE` (default, active-subscriber snapshot), `EVENTS` (subscribe/cancel/renew/retention), `SUBSCRIBERS` (per-subscriber detail)
+- `vendorNumber`, `limit`
+
+### get_finance_report
+Proceeds/earnings by region.
+- `reportDate` **(required)** — fiscal month `YYYY-MM`
+- `regionCode` — `ZZ` (default, consolidated), `US`, `EU`, `JP`, …
+- `vendorNumber`, `limit`
+
+### request_analytics_report
+Start an Analytics report request for an app (downloads, sessions, active
+devices, App Store engagement). **Async** — generation can take minutes to hours.
+- `appId` **(required)**
+- `accessType` — `ONE_TIME_SNAPSHOT` (default) or `ONGOING`
+
+### list_analytics_reports
+- `requestId` **(required)** — from `request_analytics_report`
+- `category` — `APP_USAGE`, `APP_STORE_ENGAGEMENT`, `COMMERCE`, `FRAMEWORK_USAGE`, `PERFORMANCE`
+
+### list_analytics_report_instances
+- `reportId` **(required)**
+- `granularity` — `DAILY`, `WEEKLY`, `MONTHLY`
+- `processingDate` — `YYYY-MM-DD`
+
+### get_analytics_report_data
+Download + decompress + parse an instance's segments into rows.
+- `instanceId` **(required)**
+- `limit` — max rows (default 200)
+
+**Typical analytics flow:** `request_analytics_report` → (wait) →
+`list_analytics_reports` → `list_analytics_report_instances` →
+`get_analytics_report_data`.
+
+---
+
 ## Raw API access
 
 ### `raw_request`

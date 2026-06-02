@@ -128,6 +128,45 @@ const EDITABLE_VERSION_STATES = new Set([
   "INVALID_BINARY",
 ]);
 
+// Optional default Vendor Number for sales/finance reports.
+const DEFAULT_VENDOR = process.env.ASC_VENDOR_NUMBER;
+
+/** Cap parsed report rows so large reports don't flood the response. */
+function reportResult(reportType, parsed, limit = 200) {
+  const rows = parsed.rows;
+  return {
+    reportType,
+    columns: parsed.columns,
+    rowCount: rows.length,
+    returned: Math.min(rows.length, limit),
+    truncated: rows.length > limit,
+    rows: rows.slice(0, limit),
+  };
+}
+
+function requireVendor(v) {
+  const vendor = v || DEFAULT_VENDOR;
+  if (!vendor)
+    throw new Error(
+      "vendorNumber is required (or set the ASC_VENDOR_NUMBER env var). Find it in App Store Connect → Payments and Financial Reports (or Sales and Trends) — an 8–9 digit number.",
+    );
+  return vendor;
+}
+
+// Tools that hit role-gated report/analytics endpoints. On a 403 the dispatcher
+// appends a hint that these need a higher-privilege key than App Manager.
+const REPORT_TOOLS = new Set([
+  "get_sales_report",
+  "get_subscription_report",
+  "get_finance_report",
+  "request_analytics_report",
+  "list_analytics_reports",
+  "list_analytics_report_instances",
+  "get_analytics_report_data",
+]);
+const ROLE_HINT =
+  " — NOTE: report/analytics APIs require an API key with the Admin, Finance, or Sales role. An App Manager key is not sufficient; generate a key with the needed role in App Store Connect → Users and Access → Integrations.";
+
 // ---- Tool definitions -------------------------------------------------------
 
 const tools = [
@@ -751,6 +790,250 @@ const tools = [
     },
   },
 
+  // ---- Analytics, sales, subscriptions & finance ----
+  {
+    name: "get_sales_report",
+    description:
+      "Download a Sales & Trends report (units/downloads, proceeds, and subscription data) and return parsed rows. Requires your Vendor Number (App Store Connect → Payments and Financial Reports / Sales and Trends; 8–9 digits) via vendorNumber or the ASC_VENDOR_NUMBER env var. reportType: SALES (units & proceeds, default), SUBSCRIPTION (active subs snapshot), SUBSCRIBER (per-subscriber detail), SUBSCRIPTION_EVENT (subscribe/cancel/renew), INSTALLS, FIRST_ANNUAL. reportDate format by frequency: DAILY/WEEKLY = YYYY-MM-DD, MONTHLY = YYYY-MM, YEARLY = YYYY.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        vendorNumber: { type: "string" },
+        reportDate: {
+          type: "string",
+          description: "e.g. 2024-01-15 (daily) or 2024-01 (monthly)",
+        },
+        frequency: {
+          type: "string",
+          description: "DAILY (default), WEEKLY, MONTHLY, YEARLY",
+        },
+        reportType: {
+          type: "string",
+          description: "SALES (default), SUBSCRIPTION, SUBSCRIBER, SUBSCRIPTION_EVENT, INSTALLS, …",
+        },
+        reportSubType: {
+          type: "string",
+          description: "SUMMARY (default) or DETAILED",
+        },
+        version: {
+          type: "string",
+          description: "Report version override (e.g. 1_1 for SALES, 1_4 for subscriptions)",
+        },
+        limit: { type: "number", description: "Max rows to return (default 200)" },
+      },
+      required: ["reportDate"],
+    },
+    run: async (a) => {
+      const vendor = requireVendor(a.vendorNumber);
+      const reportType = a.reportType || "SALES";
+      const subType =
+        a.reportSubType || (reportType === "SUBSCRIBER" ? "DETAILED" : "SUMMARY");
+      const version =
+        a.version ||
+        (reportType === "SALES"
+          ? "1_1"
+          : reportType.startsWith("SUBSC")
+            ? "1_4"
+            : "1_0");
+      const text = await client.getReport("/salesReports", {
+        "filter[vendorNumber]": vendor,
+        "filter[frequency]": a.frequency || "DAILY",
+        "filter[reportType]": reportType,
+        "filter[reportSubType]": subType,
+        "filter[reportDate]": a.reportDate,
+        "filter[version]": version,
+      });
+      return reportResult(
+        reportType,
+        AppStoreConnectClient.parseDelimited(text, "\t"),
+        a.limit ?? 200,
+      );
+    },
+  },
+  {
+    name: "get_subscription_report",
+    description:
+      "Subscription analytics via Sales & Trends (convenience wrapper). kind: ACTIVE = current active-subscriber snapshot, EVENTS = subscribe/cancel/renew/retention events, SUBSCRIBERS = per-subscriber detail. Requires the Vendor Number. These reports are DAILY only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        vendorNumber: { type: "string" },
+        kind: {
+          type: "string",
+          description: "ACTIVE (default), EVENTS, SUBSCRIBERS",
+        },
+        reportDate: { type: "string", description: "YYYY-MM-DD" },
+        limit: { type: "number", description: "Max rows (default 200)" },
+      },
+      required: ["reportDate"],
+    },
+    run: async (a) => {
+      const vendor = requireVendor(a.vendorNumber);
+      const map = {
+        ACTIVE: ["SUBSCRIPTION", "SUMMARY"],
+        EVENTS: ["SUBSCRIPTION_EVENT", "SUMMARY"],
+        SUBSCRIBERS: ["SUBSCRIBER", "DETAILED"],
+      };
+      const [reportType, subType] = map[a.kind || "ACTIVE"] || map.ACTIVE;
+      const text = await client.getReport("/salesReports", {
+        "filter[vendorNumber]": vendor,
+        "filter[frequency]": "DAILY",
+        "filter[reportType]": reportType,
+        "filter[reportSubType]": subType,
+        "filter[reportDate]": a.reportDate,
+        "filter[version]": "1_4",
+      });
+      return reportResult(
+        reportType,
+        AppStoreConnectClient.parseDelimited(text, "\t"),
+        a.limit ?? 200,
+      );
+    },
+  },
+  {
+    name: "get_finance_report",
+    description:
+      "Download a Finance report (proceeds/earnings by region) and return parsed rows. Requires the Vendor Number, a regionCode (e.g. 'ZZ' for the consolidated/all-regions report, or 'US', 'EU', 'JP', …) and reportDate as YYYY-MM (a fiscal month).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        vendorNumber: { type: "string" },
+        regionCode: { type: "string", description: "e.g. ZZ (default), US, EU, JP" },
+        reportDate: { type: "string", description: "Fiscal month, YYYY-MM" },
+        limit: { type: "number", description: "Max rows (default 200)" },
+      },
+      required: ["reportDate"],
+    },
+    run: async (a) => {
+      const vendor = requireVendor(a.vendorNumber);
+      const text = await client.getReport("/financeReports", {
+        "filter[vendorNumber]": vendor,
+        "filter[regionCode]": a.regionCode || "ZZ",
+        "filter[reportDate]": a.reportDate,
+        "filter[reportType]": "FINANCIAL",
+      });
+      return reportResult(
+        "FINANCIAL",
+        AppStoreConnectClient.parseDelimited(text, "\t"),
+        a.limit ?? 200,
+      );
+    },
+  },
+  {
+    name: "request_analytics_report",
+    description:
+      "Start an Analytics report request for an app — covers downloads, installs, sessions, active devices, App Store engagement (impressions, product page views, conversion), and more. accessType: ONE_TIME_SNAPSHOT (historical, default) or ONGOING (kept up to date daily). Generation is ASYNC and can take minutes to hours. Afterwards: list_analytics_reports → list_analytics_report_instances → get_analytics_report_data.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        accessType: {
+          type: "string",
+          description: "ONE_TIME_SNAPSHOT (default) or ONGOING",
+        },
+      },
+      required: ["appId"],
+    },
+    run: async (a) =>
+      client.post("/analyticsReportRequests", {
+        data: {
+          type: "analyticsReportRequests",
+          attributes: { accessType: a.accessType || "ONE_TIME_SNAPSHOT" },
+          relationships: { app: { data: { type: "apps", id: a.appId } } },
+        },
+      }),
+  },
+  {
+    name: "list_analytics_reports",
+    description:
+      "List the reports available under an analytics report request (from request_analytics_report). category filter: APP_USAGE, APP_STORE_ENGAGEMENT, COMMERCE, FRAMEWORK_USAGE, PERFORMANCE.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        requestId: { type: "string" },
+        category: { type: "string" },
+      },
+      required: ["requestId"],
+    },
+    run: async (a) => {
+      const q = {};
+      if (a.category) q["filter[category]"] = a.category;
+      const data = await client.getAll(
+        `/analyticsReportRequests/${a.requestId}/reports`,
+        q,
+      );
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "list_analytics_report_instances",
+    description:
+      "List instances of an analytics report (one per processing date). granularity: DAILY, WEEKLY, MONTHLY. Use the instance id with get_analytics_report_data.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        reportId: { type: "string" },
+        granularity: { type: "string", description: "DAILY, WEEKLY, MONTHLY" },
+        processingDate: { type: "string", description: "YYYY-MM-DD" },
+      },
+      required: ["reportId"],
+    },
+    run: async (a) => {
+      const q = {};
+      if (a.granularity) q["filter[granularity]"] = a.granularity;
+      if (a.processingDate) q["filter[processingDate]"] = a.processingDate;
+      const data = await client.getAll(
+        `/analyticsReports/${a.reportId}/instances`,
+        q,
+      );
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "get_analytics_report_data",
+    description:
+      "Download and parse the data for an analytics report instance. Fetches its segments (gzipped CSV), decompresses, and returns parsed rows.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        instanceId: { type: "string" },
+        limit: { type: "number", description: "Max rows (default 200)" },
+      },
+      required: ["instanceId"],
+    },
+    run: async (a) => {
+      const segs = await client.getAll(
+        `/analyticsReportInstances/${a.instanceId}/segments`,
+      );
+      if (!segs.length)
+        return {
+          rowCount: 0,
+          rows: [],
+          note: "No segments yet — the instance may still be processing. Try again later.",
+        };
+      let columns = [];
+      const allRows = [];
+      for (const s of segs) {
+        const url = s.attributes && s.attributes.url;
+        if (!url) continue;
+        const parsed = AppStoreConnectClient.parseDelimited(
+          await client.downloadUrl(url),
+        );
+        if (!columns.length) columns = parsed.columns;
+        allRows.push(...parsed.rows);
+      }
+      const limit = a.limit ?? 200;
+      return {
+        columns,
+        segments: segs.length,
+        rowCount: allRows.length,
+        returned: Math.min(allRows.length, limit),
+        truncated: allRows.length > limit,
+        rows: allRows.slice(0, limit),
+      };
+    },
+  },
+
   // ---- Generic escape hatch ----
   {
     name: "raw_request",
@@ -806,6 +1089,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const result = await tool.run(req.params.arguments || {});
     return ok(result);
   } catch (e) {
+    if (e && e.status === 403 && REPORT_TOOLS.has(req.params.name))
+      e.message += ROLE_HINT;
     return fail(e);
   }
 });
