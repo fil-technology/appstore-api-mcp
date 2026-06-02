@@ -1,15 +1,16 @@
 # App Store Connect MCP
 
-An [MCP](https://modelcontextprotocol.io) server that lets Claude (and any other
-MCP client) read and edit your **App Store Connect** apps in plain language —
-keywords, descriptions, titles, subtitles, promotional text, what's-new,
-screenshots, versions — plus a raw-request tool that reaches the **entire**
+An [MCP](https://modelcontextprotocol.io) server that lets **any AI agent** read
+and edit your **App Store Connect** apps in plain language — keywords,
+descriptions, titles, subtitles, promotional text, what's-new, screenshots,
+versions — plus a raw-request tool that reaches the **entire**
 [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi).
 
 > Ask things like *"update the keywords for my app to X, Y, Z"*,
 > *"show the English description for MyApp"*, or
-> *"upload these screenshots to the 6.7-inch set"* — the model calls the right tools.
+> *"upload these screenshots to the 6.7-inch set"* — the agent calls the right tools.
 
+- 🤖 **Works with any MCP client** — Claude Code/Desktop, Cursor, Cline, Windsurf, VS Code (agent mode), Zed, Continue, and custom agents on the MCP SDKs. Standard stdio server, no client-specific code. → [docs/CLIENTS.md](docs/CLIENTS.md)
 - ✅ **One-line install** via `npx` — no clone, no build
 - ✅ **Credentials stay on your machine** — calls go straight to Apple, nothing is proxied
 - ✅ **Slim, well-described tool set** + a `raw_request` escape hatch for the whole API
@@ -22,6 +23,7 @@ screenshots, versions — plus a raw-request tool that reaches the **entire**
 ## Table of contents
 
 - [Quick start](#quick-start)
+- [Supported clients](#supported-clients) → full guide in [docs/CLIENTS.md](docs/CLIENTS.md)
 - [Getting your API key](#getting-your-api-key) → full guide in [docs/SETUP.md](docs/SETUP.md)
 - [Configuration](#configuration)
 - [Tools](#tools) → full reference in [docs/TOOLS.md](docs/TOOLS.md)
@@ -40,7 +42,7 @@ screenshots, versions — plus a raw-request tool that reaches the **entire**
 ### Claude Code (CLI)
 
 ```bash
-claude mcp add appstore-connect \
+claude mcp add appstore-api \
   --env ASC_KEY_ID=YOUR_KEY_ID \
   --env ASC_ISSUER_ID=YOUR_ISSUER_ID \
   --env ASC_PRIVATE_KEY_PATH=/absolute/path/to/AuthKey_XXXXXXXXXX.p8 \
@@ -50,15 +52,15 @@ claude mcp add appstore-connect \
 Add `--scope user` to make it available in **every** project (default is the
 current project only).
 
-### Claude Desktop / Cursor / other MCP clients
+### Any other MCP client (Cursor, Cline, Windsurf, VS Code, Zed, Continue, …)
 
-Add this to your client's MCP config (for Claude Desktop:
+Almost every client uses this same block (Claude Desktop config path:
 `~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
-    "appstore-connect": {
+    "appstore-api": {
       "command": "npx",
       "args": ["-y", "appstore-api-mcp"],
       "env": {
@@ -72,6 +74,28 @@ Add this to your client's MCP config (for Claude Desktop:
 ```
 
 Restart the client, then ask it to *"list my App Store apps"* to confirm it works.
+
+---
+
+## Supported clients
+
+This is a standard stdio MCP server — it works with **any MCP-compatible agent**.
+The command (`npx -y appstore-api-mcp`) and the three `ASC_*` env vars are always
+the same; only each client's config format/location differs.
+
+| Client | Where to configure |
+| --- | --- |
+| **Claude Code** | `claude mcp add …` (see above) |
+| **Claude Desktop** | `claude_desktop_config.json` → `mcpServers` |
+| **Cursor** | `.cursor/mcp.json` → `mcpServers` |
+| **Cline** (VS Code) | `cline_mcp_settings.json` → `mcpServers` |
+| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` → `mcpServers` |
+| **VS Code** (agent mode) | `.vscode/mcp.json` → `servers` (note: not `mcpServers`) |
+| **Zed** | `settings.json` → `context_servers` |
+| **Continue** | `~/.continue/config.yaml` → `mcpServers` |
+| **Custom agent** (MCP SDK / Agents SDK / LangChain) | spawn the stdio command with the env vars |
+
+Copy-paste config snippets for each are in **[docs/CLIENTS.md](docs/CLIENTS.md)**.
 
 ---
 

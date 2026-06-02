@@ -1,7 +1,7 @@
 {
   "name": "appstore-api-mcp",
   "version": "1.0.0",
-  "description": "MCP server for Apple App Store Connect — manage apps, keywords, descriptions, titles, screenshots, versions and the full API from Claude and other MCP clients. Includes a fleet-wide ASO audit and dry-run previews.",
+  "description": "MCP server for Apple App Store Connect — manage apps, keywords, descriptions, titles, screenshots, versions and the full API from any MCP client (Claude, Cursor, Cline, Windsurf, VS Code, Zed, Continue, and custom agents). Includes a fleet-wide ASO audit and dry-run previews.",
   "type": "module",
   "bin": {
     "appstore-api-mcp": "src/index.js"

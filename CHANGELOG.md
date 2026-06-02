@@ -17,3 +17,4 @@ All notable changes to this project are documented here. The format follows
 - Dry-run mode (`dryRun: true`) on the update tools — preview a field-by-field diff with length/limit checks before writing.
 - `raw_request` escape hatch covering the entire App Store Connect API.
 - ES256 JWT auth with three key-input methods: file path, raw PEM, base64.
+- Multi-client setup guide (`docs/CLIENTS.md`) — Claude, Cursor, Cline, Windsurf, VS Code, Zed, Continue, and custom agents.
