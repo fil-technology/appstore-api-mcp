@@ -11,23 +11,32 @@
 
 # App Store Connect MCP
 
-An [MCP](https://modelcontextprotocol.io) server that lets **any AI agent** read
-and edit your **App Store Connect** apps in plain language — keywords,
-descriptions, titles, subtitles, promotional text, what's-new, screenshots,
-versions — plus a raw-request tool that reaches the **entire**
-[App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi).
+**Run App Store Connect by talking to your AI.** An
+[MCP](https://modelcontextprotocol.io) server that turns Apple's
+[App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi)
+into plain-language actions — edit your listings, audit your whole portfolio,
+and reach the entire API, from whatever AI agent you already use.
 
-> Ask things like *"update the keywords for my app to X, Y, Z"*,
-> *"show the English description for MyApp"*, or
-> *"upload these screenshots to the 6.7-inch set"* — the agent calls the right tools.
+### ✨ What makes it stand out
 
-- 🤖 **Works with any MCP client** — Claude Code/Desktop, OpenAI Codex CLI, Cursor, Cline, Windsurf, VS Code (agent mode), Zed, Continue, Gemini CLI, Google Antigravity, Amazon Q, Goose, JetBrains AI, Warp, and custom agents on the MCP SDKs. Standard stdio server, no client-specific code. → [docs/CLIENTS.md](docs/CLIENTS.md)
-- ✅ **One-line install** via `npx` — no clone, no build
-- ✅ **Credentials stay on your machine** — calls go straight to Apple, nothing is proxied
-- ✅ **Slim, well-described tool set** + a `raw_request` escape hatch for the whole API
-- 🛡️ **Dry-run mode** — preview any metadata change (old→new + length checks) before writing
-- 🚀 **Fleet audit** — one call health-checks **all** your apps for ASO gaps (built for indies with many apps)
-- ✅ MIT licensed, actively maintained
+> **🚀 Audit your whole portfolio in one shot.** *"Audit all my apps for ASO gaps"* → a ranked report across **every** app: empty keyword fields, missing subtitles, under-used 100‑char keyword space, single‑locale listings, missing screenshots. Built for indies shipping dozens of apps — not one at a time.
+
+> **🛡️ See every change before it ships.** Dry-run mode returns the exact diff (old → new) with Apple's character limits pre-checked, so nothing hits your **live** listing by surprise.
+
+> **🌐 The whole API, not a curated slice.** First-class tools for the daily work (keywords, descriptions, titles, subtitles, screenshots, versions) **plus** a `raw_request` escape hatch for everything else — TestFlight, pricing, in-app purchases, customer reviews (read & reply), sales & analytics.
+
+### 💬 Just ask
+
+> *“Set the keywords for my budgeting app to budget, expenses, money tracker.”*
+> *“Which of my apps are missing a subtitle or screenshots?”*
+> *“Dry-run a shorter description for MyApp, then upload these 6.7″ screenshots.”*
+
+### ⚙️ Built right
+
+- 🤖 **Any MCP client** — Claude, Codex, Cursor, Windsurf, Antigravity, Gemini CLI, Amazon Q, Goose, Zed, VS Code… → [docs/CLIENTS.md](docs/CLIENTS.md)
+- ⚡ **One-line install** (`npx`, no build) — or paste a prompt and let your agent set it up for you
+- 🔒 **Keys never leave your machine** — calls go straight to Apple, nothing proxied
+- 📦 **MIT · published with provenance · actively maintained**
 
 ---
 
