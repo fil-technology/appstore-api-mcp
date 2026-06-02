@@ -7,7 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [1.0.1] - 2026-06-02
 
 ### Added
-- Setup instructions for **OpenAI Codex CLI** (TOML config) and **Gemini CLI**.
+- Setup instructions for many more MCP clients: **OpenAI Codex CLI** (TOML),
+  **Gemini CLI**, **Google Antigravity**, **Amazon Q Developer CLI**, **Goose**,
+  and a list of others (Kiro, Roo Code, Trae, JetBrains AI, Warp, …).
 
 ### Changed
 - Description and docs reworded to make the client-agnostic support explicit (no longer Claude-centric).

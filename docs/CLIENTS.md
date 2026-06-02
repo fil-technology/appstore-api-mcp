@@ -176,6 +176,60 @@ In `~/.gemini/settings.json` — same `mcpServers` shape as Claude Desktop:
 }
 ```
 
+## Google Antigravity
+
+Antigravity is Google's agentic IDE and supports MCP servers. Open its **MCP
+settings** ("Manage MCP servers" → edit the JSON config) and add the standard
+`mcpServers` block:
+
+```json
+{
+  "mcpServers": {
+    "appstore-api": {
+      "command": "npx",
+      "args": ["-y", "appstore-api-mcp"],
+      "env": {
+        "ASC_KEY_ID": "YOUR_KEY_ID",
+        "ASC_ISSUER_ID": "YOUR_ISSUER_ID",
+        "ASC_PRIVATE_KEY_PATH": "/absolute/path/to/AuthKey.p8"
+      }
+    }
+  }
+}
+```
+
+## Amazon Q Developer CLI
+
+`~/.aws/amazonq/mcp.json` — same `mcpServers` shape as Claude Desktop.
+
+## Goose (Block)
+
+`~/.config/goose/config.yaml`, under `extensions` (type `stdio`):
+
+```yaml
+extensions:
+  appstore-api:
+    type: stdio
+    cmd: npx
+    args: ["-y", "appstore-api-mcp"]
+    envs:
+      ASC_KEY_ID: YOUR_KEY_ID
+      ASC_ISSUER_ID: YOUR_ISSUER_ID
+      ASC_PRIVATE_KEY_PATH: /absolute/path/to/AuthKey.p8
+```
+
+## More MCP-compatible clients
+
+The following also speak MCP and use the **same** `mcpServers` JSON block shown
+above (consult each client's MCP docs for the exact config file/UI):
+
+- **Kiro** (AWS agentic IDE) — `.kiro/settings/mcp.json`
+- **Roo Code** (VS Code) — MCP settings
+- **Trae** (ByteDance IDE)
+- **JetBrains AI Assistant / Junie** — Settings → Tools → MCP
+- **Warp** terminal — MCP servers settings
+- **BoltAI**, **LibreChat**, **Witsy**, **Tome**, **5ire** — desktop MCP clients
+
 ## Any other MCP client / custom agent
 
 Point your client at a stdio server with:

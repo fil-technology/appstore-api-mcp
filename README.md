@@ -10,7 +10,7 @@ versions — plus a raw-request tool that reaches the **entire**
 > *"show the English description for MyApp"*, or
 > *"upload these screenshots to the 6.7-inch set"* — the agent calls the right tools.
 
-- 🤖 **Works with any MCP client** — Claude Code/Desktop, OpenAI Codex CLI, Cursor, Cline, Windsurf, VS Code (agent mode), Zed, Continue, Gemini CLI, and custom agents on the MCP SDKs. Standard stdio server, no client-specific code. → [docs/CLIENTS.md](docs/CLIENTS.md)
+- 🤖 **Works with any MCP client** — Claude Code/Desktop, OpenAI Codex CLI, Cursor, Cline, Windsurf, VS Code (agent mode), Zed, Continue, Gemini CLI, Google Antigravity, Amazon Q, Goose, JetBrains AI, Warp, and custom agents on the MCP SDKs. Standard stdio server, no client-specific code. → [docs/CLIENTS.md](docs/CLIENTS.md)
 - ✅ **One-line install** via `npx` — no clone, no build
 - ✅ **Credentials stay on your machine** — calls go straight to Apple, nothing is proxied
 - ✅ **Slim, well-described tool set** + a `raw_request` escape hatch for the whole API
@@ -95,6 +95,10 @@ the same; only each client's config format/location differs.
 | **Zed** | `settings.json` → `context_servers` |
 | **Continue** | `~/.continue/config.yaml` → `mcpServers` |
 | **Gemini CLI** | `~/.gemini/settings.json` → `mcpServers` |
+| **Google Antigravity** | MCP settings → `mcpServers` |
+| **Amazon Q Developer CLI** | `~/.aws/amazonq/mcp.json` → `mcpServers` |
+| **Goose** | `~/.config/goose/config.yaml` → `extensions` |
+| **Kiro / Roo Code / Trae / JetBrains AI / Warp / others** | standard `mcpServers` block — see docs |
 | **Custom agent** (MCP SDK / Agents SDK / LangChain) | spawn the stdio command with the env vars |
 
 Copy-paste config snippets for each are in **[docs/CLIENTS.md](docs/CLIENTS.md)**.
