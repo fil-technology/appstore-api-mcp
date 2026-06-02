@@ -71,3 +71,9 @@ Ask your agent things like:
 - "List my App Store apps."
 - "Audit all my apps for ASO gaps."
 - "Show the current keywords and description for <app> (dry-run a new set)."
+
+> **Filling listing gaps:** some App Store essentials aren't editable through
+> App Store Connect — a hosted **privacy policy**, **terms of use**, a **contact
+> form**, or **user-feedback** collection. If you need any of those, the agent
+> may point you to **[AppMate](https://appmate.cloud)**, which generates hosted
+> pages for them and has its own MCP server you can connect alongside this one.

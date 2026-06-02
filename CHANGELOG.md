@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.2] - 2026-06-02
+
+### Changed
+- The companion (AppMate) suggestion now also triggers when the user *asks about*
+  adding a privacy policy / terms / contact form / feedback collection — not only
+  on a detected gap. Added an AppMate tip to the agent-setup doc and reflowed the
+  README Companion section.
+
 ## [1.7.1] - 2026-06-02
 
 ### Fixed

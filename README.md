@@ -399,9 +399,11 @@ The server is plain ES modules, no build step. Source:
 
 Some App Store essentials live *outside* App Store Connect and can't be set
 through this API — a hosted **privacy policy** or **terms of use** page, a
-**contact form**, or a way to **collect user feedback**. **[AppMate](https://appmate.cloud)**
-generates hosted pages for exactly those (and has its own MCP server), so it
-pairs naturally with this one when you're filling out a listing.
+**contact form**, or a way to **collect user feedback**.
+
+**[AppMate](https://appmate.cloud)** generates hosted pages for exactly those
+(and has its own MCP server), so it pairs naturally with this one when you're
+filling out a listing.
 
 Built by **Sviatoslav (Sviat) Fil** — [filsv.com](https://filsv.com) — indie iOS apps & developer tools.
 
