@@ -50,6 +50,7 @@ whatever AI agent you already use.
 - [Getting your API key](#getting-your-api-key) → full guide in [docs/SETUP.md](docs/SETUP.md)
 - [Configuration](#configuration)
 - [Tools](#tools) → full reference in [docs/TOOLS.md](docs/TOOLS.md)
+- [What you can ask](#what-you-can-ask)
 - [Analytics & reports setup](docs/ANALYTICS.md) — roles, Vendor Number, examples
 - [Common workflows](#common-workflows)
 - [Security](#security) → details in [docs/SECURITY.md](docs/SECURITY.md)
@@ -252,6 +253,34 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 > diff (old → new) with length/limit checks and **write nothing**. Drop the flag to apply.
 
 ---
+
+## What you can ask
+
+Once it's connected, just talk to your agent in plain language. A few things to try:
+
+**Listings & ASO**
+- *"Which of my apps are missing a subtitle or screenshots?"* (fleet audit)
+- *"Tighten the keywords for <app> — dry-run it first so I can confirm."*
+- *"Show me <app>'s current screenshots and flag any that look outdated."*
+- *"Translate <app>'s description and keywords into German and French."*
+
+**Performance**
+- *"How many downloads did all my apps get last week?"*
+- *"Pull last month's proceeds broken down by country."*
+- *"How many active subscribers do I have, and what's the recent churn?"*
+
+**Releases & the rest of the API** (via `raw_request`)
+- *"Create a new App Store version (1.4.0) for <app>."*
+- *"Summarize this week's 1-star reviews and draft polite replies."*
+- *"List my latest TestFlight builds and which beta groups can see them."*
+- *"What's <app>'s price and which territories is it available in?"*
+
+> **Capability tiers:** App management, localization, screenshots (incl. *seeing*
+> them), sales/subscriptions/analytics, the ASO audit, and dry-run are **dedicated
+> tools**. Customer reviews, pricing, availability, TestFlight, in-app purchases,
+> and category/age-rating are reachable through the **`raw_request`** escape hatch
+> (the whole App Store Connect API) — ask for them the same way and the agent will
+> call the right endpoint.
 
 ## Common workflows
 
