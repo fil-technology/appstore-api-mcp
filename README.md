@@ -1,3 +1,14 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/fil-technology/appstore-api-mcp/main/assets/banner.png" alt="appstore-api-mcp — manage App Store Connect from any AI agent" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/appstore-api-mcp"><img src="https://img.shields.io/npm/v/appstore-api-mcp?color=0a84ff&label=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/appstore-api-mcp"><img src="https://img.shields.io/npm/dm/appstore-api-mcp?color=22d3ee" alt="npm downloads"></a>
+  <img src="https://img.shields.io/npm/l/appstore-api-mcp?color=blue" alt="license">
+  <img src="https://img.shields.io/node/v/appstore-api-mcp" alt="node version">
+</p>
+
 # App Store Connect MCP
 
 An [MCP](https://modelcontextprotocol.io) server that lets **any AI agent** read
