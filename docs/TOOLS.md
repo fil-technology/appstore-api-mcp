@@ -398,17 +398,26 @@ safe-mode write settings. Run this first when something isn't working.
 
 ### snapshot_app_metadata
 Save a timestamped JSON snapshot of an app's editable **text** metadata (name,
-subtitle, privacy, description, keywords, promo, what's-new, URLs, per locale) +
-screenshot references. Screenshot images aren't stored.
-- `appId` **(required)**, `label` (optional) — returns the snapshot file path.
+subtitle, privacy, description, keywords, promo, what's-new, URLs, per locale).
+- `appId` **(required)**, `label` (optional)
+- `includeScreenshots` — also **download the screenshot images** to a local
+  folder so deleted screenshots can be restored. Slower/larger; for apps with
+  many locales it can take a while.
+- Returns the snapshot file path (+ `assetsDir` when images were saved).
 
 ### diff_app_metadata_snapshot
 - `appId` **(required)**, `snapshotFile` **(required)** — current vs snapshot diff.
 
 ### restore_app_metadata
-Restore text metadata from a snapshot (writes to the listing draft). Screenshots
-not restored. `dryRun` to preview.
+Restore **text** metadata from a snapshot (writes to the listing draft). `dryRun` to preview.
 - `appId` **(required)**, `snapshotFile` **(required)**, `dryRun`
+
+### restore_screenshots
+Re-upload screenshots from a snapshot that was taken with `includeScreenshots:true`
+— e.g. after some were deleted. Finds/creates each set and uploads the saved images.
+- `appId` **(required)**, `snapshotFile` **(required)**
+- `replace` — delete the set's current screenshots first (true restore)
+- `dryRun` — preview what would be uploaded
 
 ## Safe mode (guardrails)
 

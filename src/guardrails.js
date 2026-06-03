@@ -39,6 +39,7 @@ export const WRITE_TOOLS = new Set([
   "upload_build",
   // snapshots
   "restore_app_metadata",
+  "restore_screenshots",
 ]);
 
 // High-impact categories with their own opt-out env flags.

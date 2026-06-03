@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] - 2026-06-03
+
+### Added
+- **Screenshot backup & restore.** `snapshot_app_metadata` now takes
+  `includeScreenshots:true` to download the actual screenshot **images** locally,
+  and **`restore_screenshots`** re-uploads them — so deleted screenshots can be
+  brought back (use `replace:true` for a true restore). Previously only screenshot
+  *references* were stored; now the pixels can be too.
+
 ## [1.10.2] - 2026-06-02
 
 ### Changed

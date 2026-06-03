@@ -163,14 +163,19 @@ const VERSION_LOC_FIELDS = [
   "supportUrl",
 ];
 
-/** Collect an app's editable TEXT metadata (the snapshot/diff/restore payload). */
-async function collectAppMetadata(appId) {
+/**
+ * Collect an app's editable metadata (snapshot/diff/restore payload).
+ * If opts.assetsDir is set, the actual screenshot IMAGES are downloaded there so
+ * deleted screenshots can be re-uploaded later.
+ */
+async function collectAppMetadata(appId, opts = {}) {
   const app = await client.get(`/apps/${appId}`);
   const snap = {
     appId,
     name: app.data.attributes.name,
     bundleId: app.data.attributes.bundleId,
     capturedAt: new Date().toISOString(),
+    screenshotsBackedUp: !!opts.assetsDir,
     appInfo: null,
     version: null,
     screenshots: [],
@@ -194,16 +199,34 @@ async function collectAppMetadata(appId) {
       const o = {};
       for (const f of VERSION_LOC_FIELDS) o[f] = l.attributes[f] ?? null;
       snap.version.localizations[l.attributes.locale] = { id: l.id, ...o };
-      // screenshot references (not the pixels)
       const sets = await client.getAll(`/appStoreVersionLocalizations/${l.id}/appScreenshotSets`);
       for (const s of sets) {
         const shots = await client.getAll(`/appScreenshotSets/${s.id}/appScreenshots`);
-        if (shots.length)
-          snap.screenshots.push({
-            locale: l.attributes.locale,
-            displayType: s.attributes.screenshotDisplayType,
-            items: shots.map((x) => ({ id: x.id, fileName: x.attributes.fileName })),
-          });
+        if (!shots.length) continue;
+        const items = [];
+        for (let i = 0; i < shots.length; i++) {
+          const x = shots[i];
+          const item = { id: x.id, fileName: x.attributes.fileName, order: i };
+          if (opts.assetsDir && x.attributes.imageAsset) {
+            // Download the real image so it can be re-uploaded after a deletion.
+            const dir = join(opts.assetsDir, l.attributes.locale.replace(/[^\w-]/g, "_"), s.attributes.screenshotDisplayType);
+            mkdirSync(dir, { recursive: true });
+            const url = AppStoreConnectClient.imageUrlFromAsset(x.attributes.imageAsset, 0, "png");
+            const buf = await client.fetchBinary(url);
+            const fname = `${String(i).padStart(2, "0")}-${(x.attributes.fileName || "shot").replace(/[^\w.-]/g, "_")}`;
+            const localPath = join(dir, fname.endsWith(".png") ? fname : fname + ".png");
+            writeFileSync(localPath, buf);
+            item.localPath = localPath;
+          }
+          items.push(item);
+        }
+        snap.screenshots.push({
+          locale: l.attributes.locale,
+          localizationId: l.id,
+          displayType: s.attributes.screenshotDisplayType,
+          setId: s.id,
+          items,
+        });
       }
     }
   }
@@ -2152,22 +2175,29 @@ const tools = [
   {
     name: "snapshot_app_metadata",
     description:
-      "Save a timestamped JSON snapshot of an app's editable TEXT metadata (name, subtitle, privacy policy, description, keywords, promo text, what's-new, URLs — across locales) plus screenshot references. Lets you diff/restore later. Returns the snapshot file path.",
+      "Save a timestamped JSON snapshot of an app's editable TEXT metadata (name, subtitle, privacy, description, keywords, promo, what's-new, URLs — across locales). Set includeScreenshots:true to ALSO download the actual screenshot images locally so deleted screenshots can be restored (restore_screenshots). Returns the snapshot file path.",
     inputSchema: {
       type: "object",
       properties: {
         appId: { type: "string" },
         label: { type: "string", description: "Optional label added to the filename" },
+        includeScreenshots: {
+          type: "boolean",
+          description: "Also download the screenshot images so they can be restored (slower, larger)",
+        },
       },
       required: ["appId"],
     },
     run: async (a) => {
-      const snap = await collectAppMetadata(a.appId);
       mkdirSync(SNAPSHOT_DIR, { recursive: true });
-      const stamp = snap.capturedAt.replace(/[:.]/g, "-");
-      const slug = (snap.bundleId || a.appId).replace(/[^\w.-]/g, "_");
-      const file = join(SNAPSHOT_DIR, `${slug}-${a.label ? a.label + "-" : ""}${stamp}.json`);
+      const slug = (a.appId || "").replace(/[^\w.-]/g, "_");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const base = `${slug}-${a.label ? a.label + "-" : ""}${stamp}`;
+      const assetsDir = a.includeScreenshots ? join(SNAPSHOT_DIR, `${base}-assets`) : null;
+      const snap = await collectAppMetadata(a.appId, { assetsDir });
+      const file = join(SNAPSHOT_DIR, `${base}.json`);
       writeFileSync(file, JSON.stringify(snap, null, 2));
+      const shotCount = snap.screenshots.reduce((n, s) => n + s.items.length, 0);
       return {
         file,
         app: snap.name,
@@ -2176,7 +2206,12 @@ const tools = [
           version: snap.version ? Object.keys(snap.version.localizations).length : 0,
         },
         screenshotSets: snap.screenshots.length,
-        note: "Text metadata + screenshot references saved. Screenshot images themselves are not stored.",
+        screenshots: shotCount,
+        screenshotImagesBackedUp: !!assetsDir,
+        assetsDir,
+        note: a.includeScreenshots
+          ? "Text metadata AND screenshot images saved — fully restorable, including deleted screenshots."
+          : "Text metadata saved. Screenshot IMAGES were NOT backed up — pass includeScreenshots:true to make deleted screenshots restorable.",
       };
     },
   },
@@ -2251,6 +2286,68 @@ const tools = [
         }
       }
       return { dryRun: !!a.dryRun, app: current.name, restored: actions.length, actions };
+    },
+  },
+  {
+    name: "restore_screenshots",
+    description:
+      "Re-upload screenshots from a snapshot taken with includeScreenshots:true — e.g. after some were deleted. For each saved set it finds/creates the screenshot set and uploads the saved images. Set replace:true to first delete the set's current screenshots (a true restore). dryRun to preview. WRITES screenshots — confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        snapshotFile: { type: "string" },
+        replace: { type: "boolean", description: "Delete existing screenshots in each set before re-uploading" },
+        dryRun: { type: "boolean" },
+      },
+      required: ["appId", "snapshotFile"],
+    },
+    run: async (a) => {
+      if (!existsSync(a.snapshotFile)) return { error: `Snapshot not found: ${a.snapshotFile}` };
+      const saved = JSON.parse(readFileSync(a.snapshotFile, "utf8"));
+      if (!saved.screenshotsBackedUp)
+        return { error: "This snapshot has no backed-up screenshot images. Re-snapshot with includeScreenshots:true." };
+      // Map current locale -> version localization id, and existing sets by displayType.
+      const current = await collectAppMetadata(a.appId);
+      const locByLocale = {};
+      if (current.version) for (const [loc, v] of Object.entries(current.version.localizations)) locByLocale[loc] = v.id;
+      const actions = [];
+      for (const set of saved.screenshots) {
+        const withImages = set.items.filter((it) => it.localPath && existsSync(it.localPath));
+        if (!withImages.length) { actions.push({ locale: set.locale, displayType: set.displayType, skipped: "no backed-up images on disk" }); continue; }
+        const locId = locByLocale[set.locale];
+        if (!locId) { actions.push({ locale: set.locale, displayType: set.displayType, skipped: "locale not present on current version" }); continue; }
+        if (a.dryRun) {
+          actions.push({ locale: set.locale, displayType: set.displayType, wouldUpload: withImages.length, replace: !!a.replace });
+          continue;
+        }
+        // find or create the set
+        const existingSets = await client.getAll(`/appStoreVersionLocalizations/${locId}/appScreenshotSets`);
+        let setId = existingSets.find((s) => s.attributes.screenshotDisplayType === set.displayType)?.id;
+        if (!setId) {
+          const created = await client.post(`/appScreenshotSets`, {
+            data: { type: "appScreenshotSets", attributes: { screenshotDisplayType: set.displayType }, relationships: { appStoreVersionLocalization: { data: { type: "appStoreVersionLocalizations", id: locId } } } },
+          });
+          setId = created.data.id;
+        } else if (a.replace) {
+          const cur = await client.getAll(`/appScreenshotSets/${setId}/appScreenshots`);
+          for (const c of cur) await client.delete(`/appScreenshots/${c.id}`);
+        }
+        let uploaded = 0;
+        for (const it of withImages.sort((x, y) => (x.order ?? 0) - (y.order ?? 0))) {
+          const buf = readFileSync(it.localPath);
+          const reservation = await client.post(`/appScreenshots`, {
+            data: { type: "appScreenshots", attributes: { fileName: it.fileName || basename(it.localPath), fileSize: buf.length }, relationships: { appScreenshotSet: { data: { type: "appScreenshotSets", id: setId } } } },
+          });
+          await client.uploadAsset(reservation.data.attributes.uploadOperations, buf);
+          await client.patch(`/appScreenshots/${reservation.data.id}`, {
+            data: { type: "appScreenshots", id: reservation.data.id, attributes: { uploaded: true, sourceFileChecksum: AppStoreConnectClient.md5(buf) } },
+          });
+          uploaded++;
+        }
+        actions.push({ locale: set.locale, displayType: set.displayType, uploaded, replaced: !!a.replace });
+      }
+      return { dryRun: !!a.dryRun, app: current.name, sets: actions.length, actions };
     },
   },
 
@@ -2636,7 +2733,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.10.2" },
+  { name: "appstore-api-mcp", version: "1.11.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

@@ -265,7 +265,7 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | `apps_review_status` | 🗂️ **Fleet review board** — every app's current version + state (waiting / in-review / rejected / ready) in one call |
 | `submit_for_review` / `release_version` / `set_phased_release` | 🚀 Submit a version to Apple review (full flow), release an approved build, and control phased rollout |
 | `doctor` | 🩺 Diagnose setup: Node, creds, key works, role capabilities, vendor number, Mac build tools, write mode |
-| `snapshot_app_metadata` / `diff_app_metadata_snapshot` / `restore_app_metadata` | 💾 Save / compare / restore an app's text metadata — reversible ASO edits |
+| `snapshot_app_metadata` / `diff_app_metadata_snapshot` / `restore_app_metadata` / `restore_screenshots` | 💾 Back up / compare / restore an app's metadata. Text is always saved; pass `includeScreenshots:true` to also download the images so **deleted screenshots can be re-uploaded** |
 | `release_readiness_check` | ✅ One-call **go/no-go report** — build, metadata, ASO, screenshots, compliance, TestFlight, reviews |
 | `aso_opportunity_report` / `portfolio_growth_report` | 📈 Rank the easiest **ASO wins** across all apps; portfolio snapshot of units sold per app |
 | `add_build_to_beta_group` / `submit_beta_review` | ✈️ Assign a build to a TestFlight group; submit for beta review |
