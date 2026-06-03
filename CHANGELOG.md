@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] - 2026-06-03
+
+### Added
+- **App preview videos:** `list_app_preview_sets`, `list_app_previews`,
+  `get_app_preview` (incl. `videoUrl`), `create_app_preview_set`,
+  `upload_app_preview`, `delete_app_preview`. Snapshots can back up previews
+  (`includePreviews:true`) and **`restore_app_previews`** re-uploads them.
+- **Auto-snapshot safety net:** `APPSTORE_MCP_AUTO_SNAPSHOT=true` makes the server
+  save a text-metadata snapshot of an app before the **first** listing edit of the
+  session — so "revert" works even if you forgot to snapshot. Plus a server-side
+  habit nudge to snapshot before bulk/risky edits, and a revert recipe.
+
 ## [1.11.0] - 2026-06-03
 
 ### Added

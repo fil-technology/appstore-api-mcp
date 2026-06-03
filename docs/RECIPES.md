@@ -134,7 +134,22 @@ Uses: `get_app_store_version_localization`, `list_app_info_localizations`,
 `update_app_store_version_localization` (with `dryRun`),
 `bulk_update_version_localizations`, `aso_opportunity_report`.
 
-## 7. Build & ship (Mac only)
+## 7. Safety net — snapshot before risky edits, then revert if needed
+
+```text
+Before we change anything on AppName, take a full snapshot (include screenshots
+and previews). Then make the edits I describe. If I say "revert", restore the
+metadata, screenshots, and previews from that snapshot.
+```
+
+Uses: `snapshot_app_metadata` (with `includeScreenshots:true` / `includePreviews:true`),
+then `restore_app_metadata` + `restore_screenshots` + `restore_app_previews`.
+
+> Or set `APPSTORE_MCP_AUTO_SNAPSHOT=true` so the server auto-snapshots text
+> metadata before the first edit — then "revert" works even if you forgot to
+> snapshot. (Screenshots/previews still need the explicit include flags.)
+
+## 8. Build & ship (Mac only)
 
 ```text
 Bump AppName's build number, archive it, and upload the new build to App Store

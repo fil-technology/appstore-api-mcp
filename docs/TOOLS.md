@@ -419,6 +419,29 @@ Re-upload screenshots from a snapshot that was taken with `includeScreenshots:tr
 - `replace` — delete the set's current screenshots first (true restore)
 - `dryRun` — preview what would be uploaded
 
+### restore_app_previews
+Re-upload app preview **videos** from a snapshot taken with `includePreviews:true`.
+- `appId` **(required)**, `snapshotFile` **(required)**, `replace`, `dryRun`
+
+> **Auto-snapshot:** set `APPSTORE_MCP_AUTO_SNAPSHOT=true` and the server saves a
+> text-metadata snapshot of an app before the **first** listing edit of the session
+> — a built-in safety net so you can always revert. (Screenshots/previews still
+> need `includeScreenshots` / `includePreviews` to be restorable.)
+
+## App previews (video)
+
+### list_app_preview_sets / list_app_previews / get_app_preview
+- sets: `localizationId`; previews: `previewSetId`; one preview: `previewId` (includes `videoUrl` when available).
+
+### create_app_preview_set
+- `localizationId` **(required)**, `previewType` **(required)** (e.g. IPHONE_67).
+
+### upload_app_preview
+- `previewSetId` **(required)**, `filePath` **(required)** (.mp4/.mov), `fileName`, `previewFrameTimeCode` (e.g. `00:00:05:00`).
+
+### delete_app_preview
+- `previewId` **(required)**.
+
 ## Safe mode (guardrails)
 
 Set these env vars to enforce limits at the **server** (blocked calls return a

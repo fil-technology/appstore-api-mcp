@@ -14,6 +14,11 @@ export const WRITE_TOOLS = new Set([
   "create_screenshot_set",
   "upload_screenshot",
   "delete_screenshot",
+  // app previews (video)
+  "create_app_preview_set",
+  "upload_app_preview",
+  "delete_app_preview",
+  "restore_app_previews",
   // reviews
   "reply_to_customer_review",
   // testflight

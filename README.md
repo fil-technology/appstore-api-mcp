@@ -261,11 +261,12 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | `list_screenshot_sets` / `create_screenshot_set` | Manage per-device screenshot sets |
 | `list_screenshots` / `upload_screenshot` / `delete_screenshot` | Manage screenshots (upload handles the full reserve→upload→commit flow) |
 | `get_screenshot` | 👁️ Fetch a live screenshot **as an image the agent can see** — review/compare what's on a listing |
+| `list_app_preview_sets` / `list_app_previews` / `get_app_preview` / `create_app_preview_set` / `upload_app_preview` / `delete_app_preview` | 🎬 **App preview videos** — list, inspect (incl. `videoUrl`), upload, delete |
 | `audit_apps` | 🩺 **Fleet ASO audit** — scan all apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots. Read-only |
 | `apps_review_status` | 🗂️ **Fleet review board** — every app's current version + state (waiting / in-review / rejected / ready) in one call |
 | `submit_for_review` / `release_version` / `set_phased_release` | 🚀 Submit a version to Apple review (full flow), release an approved build, and control phased rollout |
 | `doctor` | 🩺 Diagnose setup: Node, creds, key works, role capabilities, vendor number, Mac build tools, write mode |
-| `snapshot_app_metadata` / `diff_app_metadata_snapshot` / `restore_app_metadata` / `restore_screenshots` | 💾 Back up / compare / restore an app's metadata. Text is always saved; pass `includeScreenshots:true` to also download the images so **deleted screenshots can be re-uploaded** |
+| `snapshot_app_metadata` / `diff_app_metadata_snapshot` / `restore_app_metadata` / `restore_screenshots` / `restore_app_previews` | 💾 Back up / compare / restore an app's metadata. Text always saved; `includeScreenshots:true` and `includePreviews:true` also download the images/videos so **deleted screenshots and previews can be re-uploaded**. Set `APPSTORE_MCP_AUTO_SNAPSHOT=true` to auto-snapshot text before the first edit |
 | `release_readiness_check` | ✅ One-call **go/no-go report** — build, metadata, ASO, screenshots, compliance, TestFlight, reviews |
 | `aso_opportunity_report` / `portfolio_growth_report` | 📈 Rank the easiest **ASO wins** across all apps; portfolio snapshot of units sold per app |
 | `add_build_to_beta_group` / `submit_beta_review` | ✈️ Assign a build to a TestFlight group; submit for beta review |
