@@ -112,3 +112,58 @@ Then set `ASC_PRIVATE_KEY_BASE64` instead of `ASC_PRIVATE_KEY_PATH`.
   Create or select a version in `PREPARE_FOR_SUBMISSION` state.
 - **Token/clock errors** — JWTs are time-based; make sure your system clock is correct.
 - **`npx` fails to resolve the package** — verify Node ≥ 18 and the published package name.
+
+### Multiple Node versions (the most common startup crash)
+
+> **Symptom:** the server fails to connect, and its logs show one of:
+> ```
+> npm v10.x is known not to run on Node.js v14.x
+> SyntaxError: Unexpected token '&&='
+> ```
+
+Having Node ≥ 18 *installed* isn't enough — `npx` has to actually **run on it**.
+If you have more than one Node on your machine (nvm, Homebrew, system Node, Xcode's
+bundled Node…), `npx` may resolve to an **old** one earlier on your `PATH`. Modern
+npm then crashes before the server ever reads your credentials, so it looks like an
+auth/config problem when it isn't.
+
+**Diagnose** — ask which Node `npx` actually uses (not just `node --version`):
+
+```bash
+npx node --version   # if this prints v14.x / anything < 18, that's the bug
+which -a node npx     # shows every node/npx on your PATH, in resolution order
+```
+
+**Fix — option A (recommended): pin an absolute, modern npx as the `command`.**
+Find it with `which npx` under your good Node (e.g. `/opt/homebrew/opt/node@22/bin/npx`),
+then use that full path instead of bare `npx`:
+
+```json
+{
+  "mcpServers": {
+    "appstore-api": {
+      "command": "/opt/homebrew/opt/node@22/bin/npx",
+      "args": ["-y", "appstore-api-mcp"],
+      "env": {
+        "ASC_KEY_ID": "YOUR_KEY_ID",
+        "ASC_ISSUER_ID": "YOUR_ISSUER_ID",
+        "ASC_PRIVATE_KEY_PATH": "/Users/you/.appstoreconnect/AuthKey_XXXXXXXXXX.p8"
+      }
+    }
+  }
+}
+```
+
+**Fix — option B: add a `PATH` to the server's `env`** so its child process resolves
+the right Node first (handy when `command` must stay as bare `npx`):
+
+```json
+"env": {
+  "ASC_KEY_ID": "YOUR_KEY_ID",
+  "ASC_ISSUER_ID": "YOUR_ISSUER_ID",
+  "ASC_PRIVATE_KEY_PATH": "/Users/you/.appstoreconnect/AuthKey_XXXXXXXXXX.p8",
+  "PATH": "/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/bin:/bin"
+}
+```
+
+After either fix, restart the client (or start a new session) so the server relaunches.

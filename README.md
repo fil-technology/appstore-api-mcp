@@ -422,6 +422,7 @@ More: **[docs/SECURITY.md](docs/SECURITY.md)**.
 | `401`/`403` errors | Wrong issuer/key id, wrong `.p8`, or the key's role lacks permission. |
 | `409` on metadata update | The version isn't in an editable state — create/select a `PREPARE_FOR_SUBMISSION` version. |
 | `npx` can't find the package | Ensure Node ≥ 18 and that the package name is published/correct. |
+| `SyntaxError: Unexpected token '&&='` or `npm … not to run on Node.js v14` at startup | `npx` is using an **old Node** still on your `PATH`, not your Node ≥ 18. Check with `npx node --version`. Fix: point `command` at an absolute modern npx (e.g. `/opt/homebrew/opt/node@22/bin/npx`) or add a `PATH` to the server's `env`. See [SETUP.md → multiple Node versions](docs/SETUP.md#multiple-node-versions-the-most-common-startup-crash). |
 | Tools don't appear | MCP servers load at client startup — restart the client / start a new session. |
 
 ---
