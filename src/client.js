@@ -141,6 +141,25 @@ export class AppStoreConnectClient {
     return this.request("DELETE", path);
   }
 
+  /**
+   * Like getAll, but also concatenates the `included` side-loaded resources.
+   * Returns { data, included }. Needed for endpoints queried with `include=`
+   * (e.g. price schedules that side-load their price points).
+   */
+  async getAllPages(path, query, maxPages = 40) {
+    let page = await this.get(path, query);
+    const data = Array.isArray(page.data) ? [...page.data] : [];
+    const included = Array.isArray(page.included) ? [...page.included] : [];
+    let pages = 1;
+    while (page.links && page.links.next && pages < maxPages) {
+      page = await this.request("GET", page.links.next);
+      if (Array.isArray(page.data)) data.push(...page.data);
+      if (Array.isArray(page.included)) included.push(...page.included);
+      pages++;
+    }
+    return { data, included };
+  }
+
   /** Follow `links.next` and concatenate `data` arrays up to `maxPages`. */
   async getAll(path, query, maxPages = 20) {
     let page = await this.get(path, query);

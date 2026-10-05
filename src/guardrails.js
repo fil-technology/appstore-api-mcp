@@ -28,6 +28,7 @@ export const WRITE_TOOLS = new Set([
   // catalog / pricing
   "update_in_app_purchase",
   "set_app_price",
+  "apply_ppp_prices",
   // provisioning
   "register_bundle_id",
   "register_device",
@@ -54,7 +55,7 @@ export const WRITE_TOOLS = new Set([
 // High-impact categories with their own opt-out env flags.
 export const CATEGORY_TOOLS = {
   RELEASE: new Set(["release_version", "set_phased_release"]),
-  PRICE_CHANGES: new Set(["set_app_price"]),
+  PRICE_CHANGES: new Set(["set_app_price", "apply_ppp_prices"]),
   REVIEW_REPLIES: new Set(["reply_to_customer_review"]),
   EXTERNAL_TESTFLIGHT: new Set(["submit_beta_review"]),
 };

@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.14.0] - 2026-10-05
+
+### Added
+- **PPP regional pricing for IAPs & subscriptions.** Bulk-set in-app purchase and
+  subscription prices across ~174 territories from a US base price, scaled by
+  purchasing-power parity. Logic + the 175-country dataset are ported from the
+  MIT-licensed [appstore-ppp-prices](https://github.com/duceum/appstore-ppp-pricing-agent-skill).
+  - `list_purchasable_products` — IAPs (v2) + subscriptions with current US prices.
+  - `preview_ppp_prices` — read-only dry run: per-territory target table, scaled in
+    local currency via Apple's equalizations and snapped to each territory's real
+    price grid (ratio-preserving floors of 0.99 / 0.49).
+  - `apply_ppp_prices` — applies the prices (IAP = one atomic price-schedule POST;
+    subscriptions = per-territory with `preserveCurrentPrice` + future `startDate`,
+    clearing pending prices first). **Irreversible**: requires `confirm:true`, is
+    gated by `APPSTORE_MCP_ALLOW_PRICE_CHANGES` and read-only mode, and the docs
+    mandate previewing first.
+  - Per-tier coefficients use embedded defaults; override any tier (premium,
+    high_income, upper_middle, lower_middle, emerging) by passing a `coefficients`
+    map — the agent reasons about elasticity, no server-side LLM or extra key.
+  - New `client.getAllPages()` helper returns side-loaded `included` resources.
+
 ## [1.13.0] - 2026-06-13
 
 ### Added

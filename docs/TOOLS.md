@@ -352,6 +352,46 @@ The agent does the translating; this writes them.
 Creates a new price schedule from a price point. **Changes live pricing — confirm first.**
 - `appId` **(required)**, `baseTerritory` **(required)**, `pricePointId` **(required)**, `startDate` (YYYY-MM-DD, optional)
 
+## PPP regional pricing (IAP & subscriptions)
+
+Bulk-set **in-app purchase / subscription** prices across ~174 territories from a
+US base price, scaled by purchasing-power-parity (PPP). Distinct from
+`set_app_price` (which sets the paid-*app* price). The target price is scaled in
+each territory's **local currency** (via Apple's equalizations) and snapped to a
+real price-point on that territory's grid — not a dollar figure equalized to a
+coarse subset. Ported from the MIT-licensed
+[appstore-ppp-prices](https://github.com/duceum/appstore-ppp-pricing-agent-skill).
+
+> **Always `preview_ppp_prices` → show the user the table → `apply_ppp_prices`.**
+> Prices are customer-facing across ~174 territories and **cannot be undone.**
+
+Coefficients come from an embedded 175-country table (tiers: `premium`,
+`high_income`, `upper_middle`, `lower_middle`, `emerging`; USA is always the 1.00
+base). There is **no server-side LLM** — reason about the app's elasticity (games =
+high → discount poorer markets more; AI/productivity = low → discount less) and
+pass per-tier overrides. Floors: 0.99 (premium/high_income), 0.49 (others), with
+ratio preservation across multiple products.
+
+### list_purchasable_products
+Every IAP + subscription with its current US price, tagged `IAP`/`SUB`.
+- `appId` **(required)** — use the returned `productId` with the tools below.
+
+### preview_ppp_prices
+Dry run (read-only): the full per-territory price table without writing.
+- `appId`, `productId` **(required)**
+- `usPrice` (override the US base), `coefficients` (per-tier overrides, each 0.1–2.0),
+  `exclude` (territory codes, e.g. `["RUS","BLR"]`)
+
+### apply_ppp_prices
+Applies the prices. **Irreversible.** Requires `confirm:true`; blocked in read-only
+mode and when `APPSTORE_MCP_ALLOW_PRICE_CHANGES=false`.
+- `appId`, `productId`, `confirm:true` **(required)**
+- `usPrice`, `coefficients`, `exclude` (same as preview)
+- `preserveCurrentPrice` (subscriptions; default **true** — existing subscribers keep
+  their price), `startDate` (subscriptions; `YYYY-MM-DD`, default 2 days out)
+- IAPs are set in one atomic request; subscriptions per-territory (pending price
+  changes are cleared first).
+
 ## Product Page Optimization
 
 ### list_app_store_version_experiments
@@ -451,7 +491,7 @@ clear error):
 | --- | --- |
 | `APPSTORE_MCP_READ_ONLY=true` | block all writes |
 | `APPSTORE_MCP_ALLOW_RELEASE=false` | block `release_version` / `set_phased_release` |
-| `APPSTORE_MCP_ALLOW_PRICE_CHANGES=false` | block `set_app_price` |
+| `APPSTORE_MCP_ALLOW_PRICE_CHANGES=false` | block `set_app_price` / `apply_ppp_prices` |
 | `APPSTORE_MCP_ALLOW_REVIEW_REPLIES=false` | block public review replies |
 | `APPSTORE_MCP_ALLOW_EXTERNAL_TESTFLIGHT=false` | block `submit_beta_review` |
 

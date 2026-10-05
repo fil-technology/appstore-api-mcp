@@ -25,6 +25,14 @@ import {
   existingPipelineFiles,
   parseRepoSlug,
 } from "./cicd.js";
+import {
+  loadCountries,
+  calculateTargetPrices,
+  findPricePoint,
+  decodeTerritory,
+  validateCoefficients,
+  tierSummary,
+} from "./ppp.js";
 
 const client = new AppStoreConnectClient({
   keyId: process.env.ASC_KEY_ID,
@@ -371,6 +379,342 @@ async function doSetSecrets(a) {
     repo: slug,
     secretsSet: set,
     note: "Three Actions secrets set from this server's configured API key. Values were never exposed.",
+  };
+}
+
+// ---- PPP (purchasing-power-parity) pricing helpers ----
+// These operate on IAP / subscription *price points* across territories — a
+// different surface from set_app_price (which sets the paid-app price).
+
+const PPP_TERRITORIES_PER_REQUEST = 8; // ~800 points/territory; 8 fit one 8000-row page
+
+/** Fetch every purchasable product (non-subscription IAPs v2 + subscriptions). */
+async function pppFetchProducts(appId) {
+  const products = [];
+  const iaps = await client.getAll(`/apps/${appId}/inAppPurchasesV2`, { limit: 200 });
+  for (const e of iaps) {
+    const t = e.attributes?.inAppPurchaseType || "";
+    if (t === "AUTOMATICALLY_RENEWABLE_SUBSCRIPTION") continue;
+    products.push({
+      id: e.id,
+      name: e.attributes?.name || "",
+      productId: e.attributes?.productId || "",
+      productType: t,
+      isSubscription: false,
+    });
+  }
+  const groups = await client.getAll(`/apps/${appId}/subscriptionGroups`);
+  for (const g of groups) {
+    const subs = await client.getAll(`/subscriptionGroups/${g.id}/subscriptions`, { limit: 200 });
+    for (const s of subs) {
+      products.push({
+        id: s.id,
+        name: s.attributes?.name || "",
+        productId: s.attributes?.productId || "",
+        productType: "AUTOMATICALLY_RENEWABLE_SUBSCRIPTION",
+        isSubscription: true,
+      });
+    }
+  }
+  return products;
+}
+
+/** Current US price for a product (null if none set). */
+async function pppFetchUsPrice(product) {
+  if (product.isSubscription) {
+    const { data, included } = await client.getAllPages(`/subscriptions/${product.id}/prices`, {
+      include: "subscriptionPricePoint,territory",
+      "fields[subscriptionPricePoints]": "customerPrice",
+      limit: 200,
+    });
+    const ppMap = new Map(
+      included.filter((i) => i.type === "subscriptionPricePoints").map((i) => [i.id, i]),
+    );
+    for (const price of data) {
+      if (price.relationships?.territory?.data?.id !== "USA") continue;
+      const ppId = price.relationships?.subscriptionPricePoint?.data?.id;
+      const pp = ppMap.get(ppId);
+      if (pp) return Number(pp.attributes.customerPrice);
+    }
+    return null;
+  }
+  const { data, included } = await client.getAllPages(
+    `/inAppPurchasePriceSchedules/${product.id}/manualPrices`,
+    {
+      include: "inAppPurchasePricePoint",
+      "fields[inAppPurchasePricePoints]": "customerPrice",
+    },
+  );
+  const ppMap = new Map(
+    included.filter((i) => i.type === "inAppPurchasePricePoints").map((i) => [i.id, i]),
+  );
+  for (const price of data) {
+    if (price.attributes?.startDate != null) continue; // skip scheduled future prices
+    const ppId = price.relationships?.inAppPurchasePricePoint?.data?.id || "";
+    if (decodeTerritory(ppId) === "USA") {
+      const pp = ppMap.get(ppId);
+      if (pp) return Number(pp.attributes.customerPrice);
+    }
+  }
+  return null;
+}
+
+/** Parse raw price-point rows into { id, customerPrice, territory3 }, skipping bad ones. */
+function pppParsePoints(rows) {
+  const out = [];
+  for (const pp of rows) {
+    const price = pp.attributes?.customerPrice;
+    const territory3 = decodeTerritory(pp.id);
+    if (price == null || !territory3) continue;
+    const n = Number(price);
+    if (Number.isFinite(n)) out.push({ id: pp.id, customerPrice: n, territory3 });
+  }
+  return out;
+}
+
+/** All local price points per territory (keyed by 3-letter code), each sorted asc. */
+async function pppFetchTerritoryGrids(product, territories) {
+  const path = product.isSubscription
+    ? `/subscriptions/${product.id}/pricePoints`
+    : `/v2/inAppPurchases/${product.id}/pricePoints`;
+  const unique = [...new Set(territories)];
+  const batches = [];
+  for (let i = 0; i < unique.length; i += PPP_TERRITORIES_PER_REQUEST)
+    batches.push(unique.slice(i, i + PPP_TERRITORIES_PER_REQUEST));
+
+  const grids = {};
+  await mapLimit(batches, 5, async (batch) => {
+    try {
+      const rows = await client.getAll(path, {
+        "filter[territory]": batch.join(","),
+        limit: 8000,
+      });
+      for (const pt of pppParsePoints(rows)) {
+        (grids[pt.territory3] ||= []).push(pt);
+      }
+    } catch (e) {
+      /* a failed batch just yields no grid for those territories */
+    }
+  });
+  for (const pts of Object.values(grids)) pts.sort((a, b) => a.customerPrice - b.customerPrice);
+  return grids;
+}
+
+/** Apple's equalized price points for ALL territories, from a USD base point. */
+async function pppFetchEqualizations(product, usdPointId) {
+  const path = product.isSubscription
+    ? `/subscriptionPricePoints/${usdPointId}/equalizations`
+    : `/inAppPurchasePricePoints/${usdPointId}/equalizations`;
+  const rows = await client.getAll(path, { limit: 200 });
+  const out = {};
+  for (const pt of pppParsePoints(rows)) out[pt.territory3] = pt;
+  return out;
+}
+
+/** Territory -> ISO currency, for display. */
+async function pppFetchCurrencies() {
+  try {
+    const data = await client.getAll("/territories", { limit: 200 });
+    const out = {};
+    for (const t of data) out[t.id] = t.attributes?.currency || "";
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Shared resolution used by both preview and apply. Fetches the product, US
+ * price, the USA base tier, equalizations and territory grids, then snaps each
+ * territory's coefficient-scaled target (in LOCAL currency) onto a real grid
+ * point. Returns everything needed to display or apply.
+ */
+async function pppResolve(a) {
+  const appId = a.appId;
+  const products = await pppFetchProducts(appId);
+  const product = products.find((p) => p.productId === a.productId || p.id === a.productId);
+  if (!product)
+    return {
+      error: `Product '${a.productId}' not found for app ${appId}.`,
+      availableProducts: products.map((p) => ({
+        productId: p.productId,
+        type: p.isSubscription ? "SUB" : "IAP",
+      })),
+    };
+
+  if (!product.isSubscription && (a.preserveCurrentPrice || a.startDate))
+    return {
+      error: `preserveCurrentPrice / startDate apply only to subscriptions; '${product.productId}' is an IAP.`,
+    };
+
+  const usPrice =
+    a.usPrice != null ? Number(a.usPrice) : await pppFetchUsPrice(product);
+  if (usPrice == null || !Number.isFinite(usPrice) || usPrice <= 0)
+    return { error: `Could not determine a US price for '${product.productId}'. Pass usPrice to override.` };
+
+  let overrides;
+  try {
+    overrides = validateCoefficients(a.coefficients);
+  } catch (e) {
+    return { error: e.message };
+  }
+
+  const exclude = Array.isArray(a.exclude)
+    ? a.exclude
+    : typeof a.exclude === "string"
+      ? a.exclude.split(",")
+      : [];
+  const countries = loadCountries(exclude);
+  const targets = calculateTargetPrices(
+    [{ id: product.id, name: product.name, productId: product.productId, usPrice }],
+    countries,
+    overrides,
+  );
+
+  // USA base tier: the USA grid point nearest the US price.
+  const usdGrid = (await pppFetchTerritoryGrids(product, ["USA"]))["USA"] || [];
+  if (!usdGrid.length)
+    return { error: "No USD price points available for this product." };
+  const usTier = findPricePoint(usdGrid, usPrice, usPrice);
+  if (!usTier) return { error: "No matching Apple price tier for the US price." };
+
+  const baselines = await pppFetchEqualizations(product, usTier.id);
+  if (!Object.keys(baselines).length)
+    return { error: "Could not load Apple's territory prices (equalizations) for the US price." };
+
+  const codes = targets.map((t) => t.countryCode);
+  const grids = await pppFetchTerritoryGrids(product, codes);
+
+  const resolved = {}; // territory3 -> { pointId, customerPrice }
+  const rows = [];
+  for (const t of targets) {
+    const base = baselines[t.countryCode];
+    const grid = grids[t.countryCode];
+    if (!base || !grid) {
+      rows.push({ ...t, skipped: "no local grid/baseline" });
+      continue;
+    }
+    const localTarget = base.customerPrice * t.coefficient;
+    const point = findPricePoint(grid, localTarget, base.customerPrice);
+    if (!point) {
+      rows.push({ ...t, skipped: "no grid point" });
+      continue;
+    }
+    resolved[t.countryCode] = point;
+    rows.push({
+      territory: t.countryCode,
+      country: t.countryName,
+      category: t.category,
+      coefficient: Math.round(t.coefficient * 1000) / 1000,
+      appleDefaultLocal: base.customerPrice,
+      chosenLocal: point.customerPrice,
+      pricePointId: point.id,
+    });
+  }
+  // Include USA itself (its own tier) so apply sets/keeps the base price too.
+  resolved.USA = usTier;
+
+  return { product, usPrice, usTier, resolved, rows, baselines, overrides };
+}
+
+/** Set all territory prices for an IAP in a single atomic price-schedule POST. */
+async function pppApplyIapPrices(iapId, resolved) {
+  const refs = [];
+  const included = [];
+  let i = 0;
+  for (const point of Object.values(resolved)) {
+    const tempId = `\${price${i++}}`;
+    refs.push({ type: "inAppPurchasePrices", id: tempId });
+    included.push({
+      type: "inAppPurchasePrices",
+      id: tempId,
+      attributes: { startDate: null },
+      relationships: {
+        inAppPurchaseV2: { data: { type: "inAppPurchases", id: iapId } },
+        inAppPurchasePricePoint: {
+          data: { type: "inAppPurchasePricePoints", id: point.id },
+        },
+      },
+    });
+  }
+  return client.post("/inAppPurchasePriceSchedules", {
+    data: {
+      type: "inAppPurchasePriceSchedules",
+      relationships: {
+        inAppPurchase: { data: { type: "inAppPurchases", id: iapId } },
+        baseTerritory: { data: { type: "territories", id: "USA" } },
+        manualPrices: { data: refs },
+      },
+    },
+    included,
+  });
+}
+
+/** Delete pending (future-dated) subscription prices to avoid 409 conflicts. */
+async function pppDeletePendingSubPrices(subId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const data = await client.getAll(`/subscriptions/${subId}/prices`, { limit: 200 });
+  let deleted = 0;
+  for (const price of data) {
+    const start = price.attributes?.startDate;
+    if (start && start >= today) {
+      try {
+        await client.delete(`/subscriptionPrices/${price.id}`);
+        deleted++;
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+  return deleted;
+}
+
+/** Set one subscription territory price. */
+function pppSetSubPrice(subId, territory3, point, preserved, startIso) {
+  return client.post("/subscriptionPrices", {
+    data: {
+      type: "subscriptionPrices",
+      attributes: { preserveCurrentPrice: !!preserved, startDate: startIso },
+      relationships: {
+        subscription: { data: { type: "subscriptions", id: subId } },
+        subscriptionPricePoint: {
+          data: { type: "subscriptionPricePoints", id: point.id },
+        },
+        territory: { data: { type: "territories", id: territory3 } },
+      },
+    },
+  });
+}
+
+/** Apply resolved prices. IAP = one request; subscription = per-territory. */
+async function pppApply(product, resolved, { preserved, startDate } = {}) {
+  if (!product.isSubscription) {
+    await pppApplyIapPrices(product.id, resolved);
+    return { applied: Object.keys(resolved).length, failed: 0, territories: Object.keys(resolved).length };
+  }
+  // Subscriptions: default start 2 days out; clear pending first.
+  const startIso =
+    startDate || new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+  const deletedPending = await pppDeletePendingSubPrices(product.id);
+  const entries = Object.entries(resolved);
+  let applied = 0;
+  const failures = [];
+  await mapLimit(entries, 10, async ([territory, point]) => {
+    try {
+      await pppSetSubPrice(product.id, territory, point, preserved, startIso);
+      applied++;
+    } catch (e) {
+      failures.push({ territory, error: e.message });
+    }
+  });
+  return {
+    applied,
+    failed: failures.length,
+    territories: entries.length,
+    startDate: startIso,
+    preserveCurrentPrice: !!preserved,
+    deletedPending,
+    failures: failures.slice(0, 10),
   };
 }
 
@@ -3196,6 +3540,122 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
     },
   },
 
+  // ---- PPP (purchasing-power-parity) regional pricing ----
+  {
+    name: "list_purchasable_products",
+    description:
+      "List every purchasable product for an app — non-subscription in-app purchases (consumables/non-consumables) AND auto-renewable subscriptions — each with its current US price. Use this to find the productId to feed preview_ppp_prices / apply_ppp_prices.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string", description: "App Store app id (9-digit)" },
+      },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const products = await pppFetchProducts(a.appId);
+      const withPrices = await mapLimit(products, 10, async (p) => ({
+        productId: p.productId,
+        name: p.name,
+        type: p.isSubscription ? "SUB" : "IAP",
+        usPrice: await pppFetchUsPrice(p).catch(() => null),
+      }));
+      return { appId: a.appId, count: withPrices.length, products: withPrices };
+    },
+  },
+  {
+    name: "preview_ppp_prices",
+    description:
+      "Dry run (READ-ONLY) for purchasing-power-parity regional pricing of ONE in-app purchase or subscription. Computes a per-territory price table from the US base price scaled by each country's PPP coefficient, snapped to Apple's real local price grid (scaling happens in local currency via equalizations, not dollars). ALWAYS run this and show the user the table before apply_ppp_prices — price changes affect real customers in ~174 territories and cannot be undone. " +
+      "Coefficients: the embedded per-country defaults are used unless you pass `coefficients` to override a tier. Tiers: premium, high_income, upper_middle, lower_middle, emerging (USA is always the 1.00 base). Reason about the app's type/elasticity (games = high elasticity → discount more in poorer markets; AI/productivity = low elasticity → discount less) and pass overrides like {\"emerging\":0.55,\"lower_middle\":0.70}.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string", description: "App Store app id" },
+        productId: { type: "string", description: "The product's productId (e.g. com.app.weekly) or its ASC id" },
+        usPrice: { type: "number", description: "Override the US base price (also becomes the new USA price on apply)" },
+        coefficients: {
+          type: "object",
+          description: "Per-tier multiplier overrides, e.g. {\"emerging\":0.55}. Each 0.1–2.0. Categories: premium, high_income, upper_middle, lower_middle, emerging.",
+          additionalProperties: { type: "number" },
+        },
+        exclude: {
+          type: "array",
+          description: "3-letter territory codes to exclude (e.g. [\"RUS\",\"BLR\"])",
+          items: { type: "string" },
+        },
+      },
+      required: ["appId", "productId"],
+    },
+    run: async (a) => {
+      const r = await pppResolve(a);
+      if (r.error) return r;
+      const currencies = await pppFetchCurrencies();
+      return {
+        dryRun: true,
+        product: { productId: r.product.productId, name: r.product.name, type: r.product.isSubscription ? "SUB" : "IAP" },
+        usPrice: r.usPrice,
+        usaTierPrice: r.usTier.customerPrice,
+        coefficientOverrides: r.overrides,
+        territoriesResolved: Object.keys(r.resolved).length,
+        tiers: tierSummary(),
+        prices: r.rows.map((row) => ({ ...row, currency: currencies[row.territory] })),
+        note: "No changes were written. Review this table with the user, then call apply_ppp_prices with confirm:true to apply.",
+      };
+    },
+  },
+  {
+    name: "apply_ppp_prices",
+    description:
+      "APPLY purchasing-power-parity regional prices for ONE in-app purchase or subscription across ~174 territories. IRREVERSIBLE and customer-facing. Requires confirm:true, and is blocked in read-only mode or when APPSTORE_MCP_ALLOW_PRICE_CHANGES=false. ALWAYS run preview_ppp_prices first and get the user's explicit go-ahead. " +
+      "IAPs are set in a single atomic price-schedule request. Subscriptions are set per-territory; by default preserveCurrentPrice keeps existing subscribers on their current price and the change starts in 2 days (override with preserveCurrentPrice/startDate). Pending (future-dated) subscription prices are cleared first to avoid conflicts. Takes the same pricing inputs as preview_ppp_prices.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        productId: { type: "string" },
+        confirm: { type: "boolean", description: "Must be true. Safety gate acknowledging this changes real customer prices." },
+        usPrice: { type: "number", description: "Override the US base price (also sets the new USA price)" },
+        coefficients: {
+          type: "object",
+          description: "Per-tier multiplier overrides (same as preview_ppp_prices).",
+          additionalProperties: { type: "number" },
+        },
+        exclude: { type: "array", items: { type: "string" } },
+        preserveCurrentPrice: {
+          type: "boolean",
+          description: "Subscriptions only: keep existing subscribers on their current price (default true).",
+        },
+        startDate: {
+          type: "string",
+          description: "Subscriptions only: YYYY-MM-DD the new prices take effect (default: 2 days from now).",
+        },
+      },
+      required: ["appId", "productId", "confirm"],
+    },
+    run: async (a) => {
+      if (a.confirm !== true)
+        return {
+          error:
+            "Refused: apply_ppp_prices needs confirm:true. Run preview_ppp_prices, show the user the table, get explicit approval, then re-call with confirm:true.",
+        };
+      // Default preserveCurrentPrice to true for subscriptions (safer for existing subscribers).
+      const preserved = a.preserveCurrentPrice === undefined ? true : a.preserveCurrentPrice;
+      const r = await pppResolve({ ...a, preserveCurrentPrice: preserved });
+      if (r.error) return r;
+      const result = await pppApply(r.product, r.resolved, {
+        preserved,
+        startDate: a.startDate,
+      });
+      return {
+        applied: true,
+        product: { productId: r.product.productId, name: r.product.name, type: r.product.isSubscription ? "SUB" : "IAP" },
+        usPrice: r.usPrice,
+        ...result,
+      };
+    },
+  },
+
   // ---- iOS CI/CD → TestFlight bootstrap ----
   {
     name: "ensure_asc_app",
@@ -3375,7 +3835,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.13.0" },
+  { name: "appstore-api-mcp", version: "1.14.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 
