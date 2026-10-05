@@ -4,6 +4,49 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.0] - 2026-10-05
+
+### Added — submission flow (from 5 field reports of real submissions)
+- **Build ↔ version ↔ review loop** (the biggest gap; previously `raw_request`):
+  `attach_build_to_version`, `get_app_store_version` (incl. attached build),
+  `update_app_store_version` (`usesIdfa`, releaseType…), `update_build`
+  (per-build `usesNonExemptEncryption` export compliance; `expired`),
+  `expire_build`, `get_build`, `wait_for_build_processing`, `next_build_number`.
+- **Review submissions:** `list_review_submissions`, `get_review_submission`,
+  `add_review_submission_item`, `cancel_review_submission` (surfaces Apple's
+  "can't cancel empty/non-cancellable" cleanly), `get_app_store_review_detail`.
+- **TestFlight:** `get_beta_review_status`, `set_beta_build_notes` ("What to Test").
+- **Screenshots:** `find_incomplete_screenshots` (assets stuck != COMPLETE that
+  silently block submission), `reorder_screenshots`, `replace_screenshots` (bulk
+  delete + re-upload in order).
+- **Subscriptions:** `list_subscription_groups`, `list_subscriptions`,
+  `list_subscription_offers` (**flags overlapping offer date ranges** — the
+  sandbox `countMismatch` cause), `create_subscription_group`,
+  `create_subscription`, `create_in_app_purchase`.
+- **Territories:** `list_app_territories` (compact appAvailabilityV2 summary).
+- **Diagnostics & orchestrators:** `diagnose_submission` (the exact blockers
+  behind submit's opaque 409), `swap_build` (wait→cancel→attach), `release_pipeline`
+  (attach→diagnose→submit), `bulk_upsert_localizations` (version + app-info, all
+  locales, creates missing ones, whitespace preserved verbatim).
+
+### Fixed
+- `list_builds` ignored `limit` (it paged via `getAll`). Now returns a single
+  page capped to `limit`; added `version` / `processingState` filters.
+- `submit_for_review` now pre-flights and, on failure, surfaces the real blockers
+  (no attached build, build not VALID, unset export compliance / IDFA, assets
+  still processing) instead of Apple's opaque `409 ENTITY_STATE_INVALID`; cleans
+  up the half-created empty submission.
+- `create_app_info_localization` upserts instead of failing "already exists"
+  (Apple auto-creates the name/subtitle row with the version localization).
+- `release_readiness_check` now verifies a build is attached + VALID, checks
+  description/screenshots across **all** locales, and flags assets still processing.
+- `upload_screenshot` returns a compact result (dropped ~700 tokens of signed
+  upload URLs per image).
+- `list_app_store_version_localizations` gains `omitLongFields` (return lengths
+  instead of full description/promotionalText/whatsNew).
+- `list_analytics_reports` accepts `appId` (uses the app's newest report request)
+  instead of crashing on a missing `requestId`.
+
 ## [1.14.0] - 2026-10-05
 
 ### Added

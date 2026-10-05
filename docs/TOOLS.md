@@ -517,6 +517,46 @@ clear error):
 > See **[RECIPES.md](RECIPES.md)** for copy-paste prompts that chain these into
 > workflows (prepare-version, release-train-with-gates, review→notes, portfolio audit).
 
+## Submission flow (build ↔ version ↔ review)
+
+The steps a real submission needs beyond `submit_for_review` — attaching a build,
+fixing the silent blockers behind Apple's opaque `409`, and swapping a build that's
+already in review.
+
+### Build & version
+- `attach_build_to_version` — `versionId` + (`buildId` or `buildNumber`+`appId`). The mandatory pre-submit link.
+- `get_app_store_version(versionId)` — state, releaseType, `usesIdfa`, and the **attached build** (or null).
+- `update_app_store_version(versionId, …)` — `usesIdfa`, `releaseType`, `earliestReleaseDate`, `versionString`, `downloadable`.
+- `update_build` — `usesNonExemptEncryption` (export compliance, **per-build, doesn't carry over**), `expired`. By `buildId` or `buildNumber`+`appId`.
+- `expire_build`, `get_build`, `next_build_number(appId)`.
+- `wait_for_build_processing(appId, buildNumber, timeoutSeconds?)` — polls to VALID/INVALID/FAILED.
+
+### Review submissions
+- `list_review_submissions(appId, state?)`, `get_review_submission(id)`.
+- `add_review_submission_item(reviewSubmissionId, versionId)`.
+- `cancel_review_submission` — by `submissionId` or `appId` (current in-flight); optional `waitSeconds`. Surfaces Apple's refusal on empty/non-cancellable submissions.
+- `get_app_store_review_detail(versionId)` — contact info, demo account, notes.
+
+### TestFlight
+- `get_beta_review_status` (build's `betaReviewState`), `set_beta_build_notes(whatsNew, locale?)` ("What to Test", upsert).
+
+### Screenshots
+- `find_incomplete_screenshots(versionId)` — assets whose `assetDeliveryState != COMPLETE` (silent submit blockers).
+- `reorder_screenshots(screenshotSetId, orderedIds)` — new uploads append last, so re-order after re-upload.
+- `replace_screenshots(screenshotSetId, filePaths[])` — delete all + upload in order, one call.
+
+### Subscriptions
+- `list_subscription_groups(appId)`, `list_subscriptions(groupId)`.
+- `list_subscription_offers(subscriptionId)` — **flags overlapping offer date ranges** (the sandbox `countMismatch` cause).
+- `create_subscription_group`, `create_subscription`, `create_in_app_purchase`. (First-time products still need ticking for review on the version page — the API can't submit them.)
+
+### Diagnostics & orchestrators
+- `diagnose_submission(appId, versionId)` — read-only: the exact blockers behind submit's 409.
+- `swap_build(appId, versionId, buildNumber|buildId)` — wait for processing → cancel in-flight review → attach.
+- `release_pipeline(appId, versionId, buildNumber?, submit?)` — attach → diagnose → (if clean and `submit:true`) submit.
+- `bulk_upsert_localizations(versionId, { locale: {…} })` — version + app-info fields across all locales, creates missing ones; `dryRun` supported.
+- `list_app_territories(appId)` — compact availability summary.
+
 ## Build & ship (macOS + Xcode)
 
 These run local Xcode tooling, so they only work on a Mac with Xcode installed.

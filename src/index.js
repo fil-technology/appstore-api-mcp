@@ -33,6 +33,7 @@ import {
   validateCoefficients,
   tierSummary,
 } from "./ppp.js";
+import { detectOverlappingOffers } from "./subscriptions.js";
 
 const client = new AppStoreConnectClient({
   keyId: process.env.ASC_KEY_ID,
@@ -718,7 +719,161 @@ async function pppApply(product, resolved, { preserved, startDate } = {}) {
   };
 }
 
+// ---- Build / submission helpers ----
 
+/**
+ * Resolve a build to { id, attributes }. `ref` may be a build number (digits,
+ * resolved via filter[version] within the app) or an ASC build id.
+ */
+async function resolveBuild(appId, ref) {
+  if (/^\d+$/.test(String(ref))) {
+    if (!appId) throw new Error("appId is required to resolve a build by its number.");
+    const page = await client.get(`/builds`, {
+      "filter[app]": appId,
+      "filter[version]": String(ref),
+      limit: 1,
+    });
+    const b = page.data?.[0];
+    if (!b) throw new Error(`No build numbered ${ref} found for app ${appId}.`);
+    return { id: b.id, attributes: b.attributes || {} };
+  }
+  const res = await client.get(`/builds/${ref}`);
+  return { id: res.data.id, attributes: res.data.attributes || {} };
+}
+
+/**
+ * Inspect a version for the usual silent submit blockers and return a list of
+ * issues. Covers: no build attached, build not VALID, unset export compliance,
+ * unset IDFA declaration, and screenshots/previews still processing.
+ */
+async function diagnoseSubmitBlockers(appId, versionId) {
+  const issues = [];
+  let versionAttrs = {};
+  try {
+    const v = await client.get(`/appStoreVersions/${versionId}`, {
+      include: "build",
+    });
+    versionAttrs = v.data?.attributes || {};
+    const buildRel = v.data?.relationships?.build?.data;
+    if (!buildRel) {
+      issues.push({
+        area: "build",
+        issue: "No build is attached to this version.",
+        fix: "attach_build_to_version(versionId, buildId|buildNumber).",
+      });
+    } else {
+      try {
+        const b = await client.get(`/builds/${buildRel.id}`);
+        const ba = b.data?.attributes || {};
+        if (ba.processingState && ba.processingState !== "VALID")
+          issues.push({
+            area: "build",
+            issue: `Attached build is ${ba.processingState}, not VALID.`,
+            fix: "Wait for processing (wait_for_build_processing) before submitting.",
+          });
+        if (ba.usesNonExemptEncryption == null)
+          issues.push({
+            area: "export-compliance",
+            issue: "Build's usesNonExemptEncryption is unset (per-build; does not carry over).",
+            fix: "update_build(buildId, usesNonExemptEncryption:false|true). This is a common cause of the opaque 409.",
+          });
+      } catch {
+        /* build fetch best-effort */
+      }
+    }
+    if (versionAttrs.usesIdfa == null)
+      issues.push({
+        area: "idfa",
+        issue: "Version's usesIdfa is unset.",
+        fix: "update_app_store_version(versionId, usesIdfa:false|true).",
+      });
+  } catch (e) {
+    issues.push({ area: "version", issue: `Could not read version: ${e.message}` });
+  }
+  // Screenshots / previews still processing anywhere block submission.
+  try {
+    const stuck = await findIncompleteAssets(versionId);
+    if (stuck.screenshots.length || stuck.previews.length)
+      issues.push({
+        area: "assets",
+        issue: `${stuck.screenshots.length} screenshot(s) and ${stuck.previews.length} preview(s) not COMPLETE (ASC shows "uploads in progress").`,
+        fix: "Wait for processing; see find_incomplete_screenshots(versionId) for the exact assets.",
+        locales: [...new Set([...stuck.screenshots, ...stuck.previews].map((s) => s.locale))].slice(0, 10),
+      });
+  } catch {
+    /* best-effort */
+  }
+  return issues;
+}
+
+/** Find screenshots/previews whose assetDeliveryState.state != COMPLETE. */
+async function findIncompleteAssets(versionId) {
+  const screenshots = [];
+  const previews = [];
+  const locs = await client.getAll(
+    `/appStoreVersions/${versionId}/appStoreVersionLocalizations`,
+  );
+  await mapLimit(locs, 6, async (loc) => {
+    const locale = loc.attributes?.locale;
+    const sets = await client.getAll(`/appStoreVersionLocalizations/${loc.id}/appScreenshotSets`);
+    await mapLimit(sets, 4, async (set) => {
+      const shots = await client.getAll(`/appScreenshotSets/${set.id}/appScreenshots`);
+      for (const sh of shots) {
+        const state = sh.attributes?.assetDeliveryState?.state;
+        if (state && state !== "COMPLETE")
+          screenshots.push({
+            id: sh.id,
+            locale,
+            displayType: set.attributes?.screenshotDisplayType,
+            fileName: sh.attributes?.fileName,
+            state,
+          });
+      }
+    });
+    const pvSets = await client.getAll(`/appStoreVersionLocalizations/${loc.id}/appPreviewSets`);
+    await mapLimit(pvSets, 4, async (set) => {
+      const pvs = await client.getAll(`/appPreviewSets/${set.id}/appPreviews`);
+      for (const pv of pvs) {
+        const state = pv.attributes?.assetDeliveryState?.state;
+        if (state && state !== "COMPLETE")
+          previews.push({
+            id: pv.id,
+            locale,
+            previewType: set.attributes?.previewType,
+            fileName: pv.attributes?.fileName,
+            state,
+          });
+      }
+    });
+  });
+  return { screenshots, previews };
+}
+
+/** Reserve → upload → commit one screenshot file into a set. Returns a compact row. */
+async function uploadScreenshotFile(setId, filePath, fileName) {
+  const buf = readFileSync(filePath);
+  const name = fileName || basename(filePath);
+  const reservation = await client.post(`/appScreenshots`, {
+    data: {
+      type: "appScreenshots",
+      attributes: { fileName: name, fileSize: buf.length },
+      relationships: {
+        appScreenshotSet: { data: { type: "appScreenshotSets", id: setId } },
+      },
+    },
+  });
+  const id = reservation.data.id;
+  await client.uploadAsset(reservation.data.attributes.uploadOperations, buf);
+  const committed = await client.patch(`/appScreenshots/${id}`, {
+    data: {
+      type: "appScreenshots",
+      id,
+      attributes: { uploaded: true, sourceFileChecksum: AppStoreConnectClient.md5(buf) },
+    },
+  });
+  const at = committed?.data?.attributes || {};
+  return { id, fileName: at.fileName || name, state: at.assetDeliveryState?.state || "UPLOAD_COMPLETE" };
+}
 
 /** Throw a friendly install-guidance error if Xcode CLI tools aren't available. */
 async function ensureXcode() {
@@ -1091,15 +1246,34 @@ const tools = [
       const attributes = { locale: a.locale };
       for (const k of ["name", "subtitle", "privacyPolicyUrl", "privacyPolicyText"])
         if (a[k] !== undefined) attributes[k] = a[k];
-      return client.post(`/appInfoLocalizations`, {
-        data: {
-          type: "appInfoLocalizations",
-          attributes,
-          relationships: {
-            appInfo: { data: { type: "appInfos", id: a.appInfoId } },
+      // Upsert: Apple auto-creates the name/subtitle entry for a locale as soon
+      // as that locale's version localization exists, so a plain POST can 409
+      // with "already exists". On conflict, find the existing row and PATCH it.
+      try {
+        return await client.post(`/appInfoLocalizations`, {
+          data: {
+            type: "appInfoLocalizations",
+            attributes,
+            relationships: {
+              appInfo: { data: { type: "appInfos", id: a.appInfoId } },
+            },
           },
-        },
-      });
+        });
+      } catch (e) {
+        const conflict = e.status === 409 || /already exist/i.test(e.message || "");
+        if (!conflict) throw e;
+        const existing = await client.getAll(
+          `/appInfos/${a.appInfoId}/appInfoLocalizations`,
+        );
+        const row = existing.find((x) => x.attributes?.locale === a.locale);
+        if (!row) throw e;
+        const patchAttrs = { ...attributes };
+        delete patchAttrs.locale; // locale is immutable on update
+        const res = await client.patch(`/appInfoLocalizations/${row.id}`, {
+          data: { type: "appInfoLocalizations", id: row.id, attributes: patchAttrs },
+        });
+        return { ...res, _upserted: "updated existing localization for this locale" };
+      }
     },
   },
 
@@ -1170,17 +1344,32 @@ const tools = [
   {
     name: "list_app_store_version_localizations",
     description:
-      "List the per-locale localizations of an App Store version. Each holds: description, keywords, promotionalText, whatsNew, marketingUrl, supportUrl. Use the localization id to read/update copy and to find screenshot sets.",
+      "List the per-locale localizations of an App Store version. Each holds: description, keywords, promotionalText, whatsNew, marketingUrl, supportUrl. Use the localization id to read/update copy and to find screenshot sets. Pass omitLongFields:true to replace description/promotionalText/whatsNew with their character counts (descriptionLength etc.) — much lighter when scanning many locales.",
     inputSchema: {
       type: "object",
-      properties: { versionId: { type: "string" } },
+      properties: {
+        versionId: { type: "string" },
+        omitLongFields: {
+          type: "boolean",
+          description: "Return lengths instead of full description/promotionalText/whatsNew text",
+        },
+      },
       required: ["versionId"],
     },
     run: async (a) => {
       const data = await client.getAll(
         `/appStoreVersions/${a.versionId}/appStoreVersionLocalizations`,
       );
-      return data.map((x) => ({ id: x.id, ...x.attributes }));
+      return data.map((x) => {
+        const attrs = { ...x.attributes };
+        if (a.omitLongFields) {
+          for (const f of ["description", "promotionalText", "whatsNew"]) {
+            attrs[`${f}Length`] = (attrs[f] || "").length;
+            delete attrs[f];
+          }
+        }
+        return { id: x.id, ...attrs };
+      });
     },
   },
   {
@@ -1405,7 +1594,16 @@ const tools = [
           },
         },
       });
-      return committed;
+      // Return a compact result — the raw response carries large signed upload
+      // URLs that waste context and are useless after commit.
+      const at = committed?.data?.attributes || {};
+      return {
+        id,
+        fileName: at.fileName || fileName,
+        fileSize: at.fileSize ?? buf.length,
+        state: at.assetDeliveryState?.state || "UPLOAD_COMPLETE",
+        uploaded: true,
+      };
     },
   },
   {
@@ -1887,23 +2085,39 @@ const tools = [
   {
     name: "list_analytics_reports",
     description:
-      "List the reports available under an analytics report request (from request_analytics_report). category filter: APP_USAGE, APP_STORE_ENGAGEMENT, COMMERCE, FRAMEWORK_USAGE, PERFORMANCE.",
+      "List the reports available under an analytics report request. Pass requestId (from request_analytics_report) OR just appId — with appId, the newest existing report request for the app is used (if none exists, you're told to call request_analytics_report first). category filter: APP_USAGE, APP_STORE_ENGAGEMENT, COMMERCE, FRAMEWORK_USAGE, PERFORMANCE.",
     inputSchema: {
       type: "object",
       properties: {
-        requestId: { type: "string" },
+        requestId: { type: "string", description: "An analyticsReportRequest id" },
+        appId: { type: "string", description: "Alternative to requestId: use the app's newest report request" },
         category: { type: "string" },
       },
-      required: ["requestId"],
     },
     run: async (a) => {
+      let requestId = a.requestId;
+      if (!requestId) {
+        if (!a.appId)
+          return { error: "Pass requestId or appId." };
+        const reqs = await client.getAll(`/apps/${a.appId}/analyticsReportRequests`, {
+          limit: 50,
+        });
+        if (!reqs.length)
+          return {
+            error:
+              "No analytics report request exists for this app yet. Call request_analytics_report first (generation is async and can take minutes–hours).",
+          };
+        // Prefer an ONGOING request, else the first returned.
+        requestId =
+          (reqs.find((r) => r.attributes?.accessType === "ONGOING") || reqs[0]).id;
+      }
       const q = {};
       if (a.category) q["filter[category]"] = a.category;
       const data = await client.getAll(
-        `/analyticsReportRequests/${a.requestId}/reports`,
+        `/analyticsReportRequests/${requestId}/reports`,
         q,
       );
-      return data.map((x) => ({ id: x.id, ...x.attributes }));
+      return { requestId, reports: data.map((x) => ({ id: x.id, ...x.attributes })) };
     },
   },
   {
@@ -2041,23 +2255,31 @@ const tools = [
   {
     name: "list_builds",
     description:
-      "List TestFlight builds for an app (newest first): version, upload/expiration dates, processing state, min OS.",
+      "List TestFlight builds for an app (newest first): version, upload/expiration dates, processing state, min OS. Optionally filter by build number (version) or processing state.",
     inputSchema: {
       type: "object",
       properties: {
         appId: { type: "string" },
-        limit: { type: "number", description: "Max builds (default 25)" },
+        limit: { type: "number", description: "Max builds to return (default 25)" },
+        version: { type: "string", description: "Filter to a specific build number, e.g. '42'" },
+        processingState: { type: "string", description: "PROCESSING, VALID, INVALID, FAILED" },
       },
       required: ["appId"],
     },
     run: async (a) => {
-      // The /builds collection supports sort; the app relationship does not.
-      const data = await client.getAll(`/builds`, {
+      // Use a single page sized to the requested limit — getAll() would follow
+      // links.next and return far more than `limit` asks for (per-page size).
+      const limit = a.limit ?? 25;
+      const query = {
         "filter[app]": a.appId,
         sort: "-version",
-        limit: a.limit ?? 25,
-      });
-      return data.map((x) => ({ id: x.id, ...x.attributes }));
+        limit: Math.min(Math.max(limit, 1), 200),
+      };
+      if (a.version) query["filter[version]"] = a.version;
+      if (a.processingState) query["filter[processingState]"] = a.processingState;
+      const page = await client.get(`/builds`, query);
+      const data = Array.isArray(page.data) ? page.data : [];
+      return data.slice(0, limit).map((x) => ({ id: x.id, ...x.attributes }));
     },
   },
   {
@@ -2562,35 +2784,63 @@ const tools = [
       required: ["appId", "versionId"],
     },
     run: async (a) => {
-      const sub = await client.post("/reviewSubmissions", {
-        data: {
-          type: "reviewSubmissions",
-          attributes: { platform: a.platform || "IOS" },
-          relationships: { app: { data: { type: "apps", id: a.appId } } },
-        },
-      });
-      const subId = sub.data.id;
-      await client.post("/reviewSubmissionItems", {
-        data: {
-          type: "reviewSubmissionItems",
-          relationships: {
-            reviewSubmission: {
-              data: { type: "reviewSubmissions", id: subId },
-            },
-            appStoreVersion: {
-              data: { type: "appStoreVersions", id: a.versionId },
+      // Pre-flight: surface silent blockers before Apple's opaque 409.
+      const preIssues = await diagnoseSubmitBlockers(a.appId, a.versionId).catch(() => []);
+      if (preIssues.length)
+        return {
+          submitted: false,
+          blocked: true,
+          reason:
+            "Not submitting — the version has blockers Apple would reject with an opaque 409. Fix these and retry:",
+          issues: preIssues,
+        };
+      let subId;
+      try {
+        const sub = await client.post("/reviewSubmissions", {
+          data: {
+            type: "reviewSubmissions",
+            attributes: { platform: a.platform || "IOS" },
+            relationships: { app: { data: { type: "apps", id: a.appId } } },
+          },
+        });
+        subId = sub.data.id;
+        await client.post("/reviewSubmissionItems", {
+          data: {
+            type: "reviewSubmissionItems",
+            relationships: {
+              reviewSubmission: { data: { type: "reviewSubmissions", id: subId } },
+              appStoreVersion: { data: { type: "appStoreVersions", id: a.versionId } },
             },
           },
-        },
-      });
-      const submitted = await client.patch(`/reviewSubmissions/${subId}`, {
-        data: {
-          type: "reviewSubmissions",
-          id: subId,
-          attributes: { submitted: true },
-        },
-      });
-      return { reviewSubmissionId: subId, result: submitted };
+        });
+        const submitted = await client.patch(`/reviewSubmissions/${subId}`, {
+          data: {
+            type: "reviewSubmissions",
+            id: subId,
+            attributes: { submitted: true },
+          },
+        });
+        return { submitted: true, reviewSubmissionId: subId, result: submitted };
+      } catch (e) {
+        // On failure, diagnose and surface the likely real cause; clean up the
+        // half-created (empty) submission so it doesn't orphan.
+        const issues = await diagnoseSubmitBlockers(a.appId, a.versionId).catch(() => []);
+        if (subId) {
+          try {
+            await client.patch(`/reviewSubmissions/${subId}`, {
+              data: { type: "reviewSubmissions", id: subId, attributes: { canceled: true } },
+            });
+          } catch {
+            /* best-effort cleanup */
+          }
+        }
+        return {
+          submitted: false,
+          error: e.message,
+          likelyCauses: issues.length ? issues : "No specific blocker detected — see the raw error above.",
+          reviewSubmissionId: subId,
+        };
+      }
     },
   },
   {
@@ -3228,20 +3478,52 @@ const tools = [
       const ed = versions.find((v) => EDITABLE_VERSION_STATES.has(v.attributes.appStoreState)) || versions[0];
       add("Version", ed ? "info" : "warn", ed ? `v${ed.attributes.versionString} — ${ed.attributes.appStoreState}` : "no version");
       if (ed) {
+        // Is a build attached? (common silent submit blocker)
+        try {
+          const vFull = await client.get(`/appStoreVersions/${ed.id}`, { include: "build" });
+          const buildRel = vFull.data?.relationships?.build?.data;
+          if (!buildRel) add("Attached build", "fail", "no build attached to this version");
+          else {
+            const b = await client.get(`/builds/${buildRel.id}`);
+            const ba = b.data?.attributes || {};
+            add("Attached build", ba.processingState === "VALID" ? "pass" : "warn",
+              `v${ba.version} — ${ba.processingState}` +
+                (ba.usesNonExemptEncryption == null ? " · export compliance UNSET" : ""));
+          }
+        } catch (e) { add("Attached build", "warn", e.message.slice(0, 60)); }
+
         const locs = await client.getAll(`/appStoreVersions/${ed.id}/appStoreVersionLocalizations`);
         const loc = locs.find((l) => l.attributes.locale === primaryLocale) || locs[0];
         const at = (loc && loc.attributes) || {};
-        add("Description", at.description ? "pass" : "fail", at.description ? "present" : "missing");
+        add("Description", at.description ? "pass" : "fail", at.description ? `present (${primaryLocale})` : "missing");
         const kw = (at.keywords || "").trim();
         add("Keywords", kw ? (kw.length >= 70 ? "pass" : "warn") : "fail", kw ? `${kw.length}/100 chars` : "empty");
         add("What's New", at.whatsNew ? "pass" : "warn", at.whatsNew ? "present" : "missing");
         add("Support URL", at.supportUrl ? "pass" : "warn", at.supportUrl ? "set" : "missing");
-        if (loc) {
+
+        // Every locale: description + at least one screenshot.
+        const noDesc = [];
+        const noShots = [];
+        await mapLimit(locs, 6, async (l) => {
+          if (!(l.attributes?.description || "").trim()) noDesc.push(l.attributes?.locale);
           let shots = 0;
-          const sets = await client.getAll(`/appStoreVersionLocalizations/${loc.id}/appScreenshotSets`);
-          for (const s of sets) shots += (await client.getAll(`/appScreenshotSets/${s.id}/appScreenshots`)).length;
-          add("Screenshots", shots > 0 ? "pass" : "fail", `${shots} on ${loc.attributes.locale}`);
-        }
+          const sets = await client.getAll(`/appStoreVersionLocalizations/${l.id}/appScreenshotSets`);
+          for (const s of sets)
+            shots += (await client.getAll(`/appScreenshotSets/${s.id}/appScreenshots`)).length;
+          if (shots === 0) noShots.push(l.attributes?.locale);
+        });
+        add("Description (all locales)", noDesc.length ? "fail" : "pass",
+          noDesc.length ? `missing in: ${noDesc.join(", ")}` : `${locs.length} locale(s) OK`);
+        add("Screenshots (all locales)", noShots.length ? "fail" : "pass",
+          noShots.length ? `none in: ${noShots.join(", ")}` : `${locs.length} locale(s) have screenshots`);
+
+        // Any asset still processing blocks submission.
+        try {
+          const stuck = await findIncompleteAssets(ed.id);
+          const n = stuck.screenshots.length + stuck.previews.length;
+          add("Asset processing", n ? "fail" : "pass",
+            n ? `${n} asset(s) not COMPLETE (e.g. ${stuck.screenshots.concat(stuck.previews).slice(0, 3).map((x) => `${x.locale} ${x.fileName || ""}`).join("; ")})` : "all COMPLETE");
+        } catch { /* best-effort */ }
       }
       try {
         const infos = await client.getAll(`/apps/${a.appId}/appInfos`);
@@ -3790,6 +4072,937 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
     },
   },
 
+  // ---- Submission flow: build ↔ version ↔ review ----
+  {
+    name: "attach_build_to_version",
+    description:
+      "Attach an already-processed build to an App Store version — the mandatory step before submitting that has no other tool. Pass the build by its ASC id (buildId) or by its number (buildNumber, resolved within the app). Uses PATCH /appStoreVersions/{id}/relationships/build.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        versionId: { type: "string" },
+        buildId: { type: "string", description: "ASC build id" },
+        buildNumber: { type: "string", description: "Build number (needs appId to resolve)" },
+        appId: { type: "string", description: "Required when using buildNumber" },
+      },
+      required: ["versionId"],
+    },
+    run: async (a) => {
+      if (!a.buildId && !a.buildNumber) return { error: "Pass buildId or buildNumber." };
+      const build = a.buildId
+        ? await resolveBuild(a.appId, a.buildId)
+        : await resolveBuild(a.appId, a.buildNumber);
+      await client.patch(`/appStoreVersions/${a.versionId}/relationships/build`, {
+        data: { type: "builds", id: build.id },
+      });
+      return {
+        attached: true,
+        versionId: a.versionId,
+        buildId: build.id,
+        buildNumber: build.attributes?.version,
+        processingState: build.attributes?.processingState,
+      };
+    },
+  },
+  {
+    name: "get_app_store_version",
+    description:
+      "Get one App Store version with its state and the build attached to it (GET /appStoreVersions/{id}?include=build). Returns appStoreState, releaseType, versionString, usesIdfa, and the attached build's number/processing state (or null if none).",
+    inputSchema: {
+      type: "object",
+      properties: { versionId: { type: "string" } },
+      required: ["versionId"],
+    },
+    run: async (a) => {
+      const v = await client.get(`/appStoreVersions/${a.versionId}`, { include: "build" });
+      const attrs = v.data?.attributes || {};
+      const buildRel = v.data?.relationships?.build?.data;
+      let build = null;
+      if (buildRel) {
+        const inc = (v.included || []).find((i) => i.type === "builds" && i.id === buildRel.id);
+        build = inc
+          ? { id: inc.id, version: inc.attributes?.version, processingState: inc.attributes?.processingState }
+          : { id: buildRel.id };
+      }
+      return { id: a.versionId, ...attrs, build };
+    },
+  },
+  {
+    name: "update_app_store_version",
+    description:
+      "Update App Store version attributes: usesIdfa (unset → opaque 409 at submit), releaseType (MANUAL, AFTER_APPROVAL, SCHEDULED), earliestReleaseDate (ISO 8601), versionString, downloadable. Only pass fields you want to change.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        versionId: { type: "string" },
+        usesIdfa: { type: "boolean" },
+        releaseType: { type: "string", description: "MANUAL, AFTER_APPROVAL, SCHEDULED" },
+        earliestReleaseDate: { type: "string", description: "ISO 8601 (for SCHEDULED)" },
+        versionString: { type: "string" },
+        downloadable: { type: "boolean" },
+      },
+      required: ["versionId"],
+    },
+    run: async (a) => {
+      const attributes = {};
+      for (const k of ["usesIdfa", "releaseType", "earliestReleaseDate", "versionString", "downloadable"])
+        if (a[k] !== undefined) attributes[k] = a[k];
+      if (!Object.keys(attributes).length) return { error: "No attributes to update." };
+      return client.patch(`/appStoreVersions/${a.versionId}`, {
+        data: { type: "appStoreVersions", id: a.versionId, attributes },
+      });
+    },
+  },
+  {
+    name: "update_build",
+    description:
+      "Update a build's attributes. usesNonExemptEncryption sets export compliance — this is PER-BUILD and does NOT carry over from a previous build; when unset, submit_for_review fails with an opaque 409. expired:true expires a TestFlight build. Pass buildId or buildNumber(+appId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        buildId: { type: "string" },
+        buildNumber: { type: "string" },
+        appId: { type: "string" },
+        usesNonExemptEncryption: { type: "boolean" },
+        expired: { type: "boolean" },
+      },
+    },
+    run: async (a) => {
+      const build = await resolveBuild(a.appId, a.buildId || a.buildNumber);
+      const attributes = {};
+      if (a.usesNonExemptEncryption !== undefined) attributes.usesNonExemptEncryption = a.usesNonExemptEncryption;
+      if (a.expired !== undefined) attributes.expired = a.expired;
+      if (!Object.keys(attributes).length) return { error: "Pass usesNonExemptEncryption and/or expired." };
+      const res = await client.patch(`/builds/${build.id}`, {
+        data: { type: "builds", id: build.id, attributes },
+      });
+      return { buildId: build.id, updated: attributes, result: res.data?.attributes };
+    },
+  },
+  {
+    name: "expire_build",
+    description: "Expire a TestFlight build (PATCH /builds/{id} {expired:true}). Pass buildId or buildNumber(+appId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        buildId: { type: "string" },
+        buildNumber: { type: "string" },
+        appId: { type: "string" },
+      },
+    },
+    run: async (a) => {
+      const build = await resolveBuild(a.appId, a.buildId || a.buildNumber);
+      await client.patch(`/builds/${build.id}`, {
+        data: { type: "builds", id: build.id, attributes: { expired: true } },
+      });
+      return { buildId: build.id, buildNumber: build.attributes?.version, expired: true };
+    },
+  },
+  {
+    name: "get_build",
+    description:
+      "Get one build by its number (buildNumber + appId) or ASC id (buildId). Returns version, processingState, uploaded/expiration dates, min OS, export compliance.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        buildNumber: { type: "string" },
+        buildId: { type: "string" },
+      },
+    },
+    run: async (a) => {
+      const build = await resolveBuild(a.appId, a.buildId || a.buildNumber);
+      return { id: build.id, ...build.attributes };
+    },
+  },
+  {
+    name: "wait_for_build_processing",
+    description:
+      "Poll until a build finishes processing (VALID) or fails (INVALID/FAILED), or the timeout elapses. Use right after upload_build to confirm a build is ready before attaching it. Returns the final state and build id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        buildNumber: { type: "string" },
+        timeoutSeconds: { type: "number", description: "Max wait (default 600)" },
+        pollSeconds: { type: "number", description: "Poll interval (default 15)" },
+      },
+      required: ["appId", "buildNumber"],
+    },
+    run: async (a) => {
+      const timeout = (a.timeoutSeconds ?? 600) * 1000;
+      const poll = Math.max((a.pollSeconds ?? 15) * 1000, 5000);
+      const deadline = Date.now() + timeout;
+      const terminal = new Set(["VALID", "INVALID", "FAILED"]);
+      let last = null;
+      while (Date.now() < deadline) {
+        const page = await client.get(`/builds`, {
+          "filter[app]": a.appId,
+          "filter[version]": String(a.buildNumber),
+          limit: 1,
+        });
+        const b = page.data?.[0];
+        if (b) {
+          last = b;
+          const state = b.attributes?.processingState;
+          if (terminal.has(state))
+            return { buildId: b.id, buildNumber: b.attributes?.version, processingState: state, done: true };
+        }
+        await new Promise((r) => setTimeout(r, poll));
+      }
+      return {
+        done: false,
+        timedOut: true,
+        buildId: last?.id || null,
+        processingState: last?.attributes?.processingState || "UNKNOWN",
+        note: "Build did not reach a terminal state before the timeout. Call again or increase timeoutSeconds.",
+      };
+    },
+  },
+  {
+    name: "next_build_number",
+    description:
+      "Return the highest existing build number for an app and the suggested next one (+1), so you don't have to list every build before archiving.",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const page = await client.get(`/builds`, {
+        "filter[app]": a.appId,
+        sort: "-version",
+        limit: 20,
+      });
+      const nums = (page.data || [])
+        .map((b) => parseInt(b.attributes?.version, 10))
+        .filter((n) => Number.isFinite(n));
+      const latest = nums.length ? Math.max(...nums) : 0;
+      return { latestBuildNumber: latest || null, nextBuildNumber: latest + 1 };
+    },
+  },
+  {
+    name: "list_review_submissions",
+    description:
+      "List App Store review submissions for an app (with their items), newest-relevant first. Use to find an in-flight submission to cancel when swapping a build. Filter by state (e.g. READY_FOR_REVIEW, WAITING_FOR_REVIEW, IN_REVIEW).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        state: { type: "string", description: "Optional reviewSubmissionState filter" },
+      },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const q = { "filter[app]": a.appId, include: "items" };
+      if (a.state) q["filter[state]"] = a.state;
+      const { data } = await client.getAllPages(`/reviewSubmissions`, q);
+      return data.map((x) => ({
+        id: x.id,
+        state: x.attributes?.state,
+        platform: x.attributes?.platform,
+        submitted: x.attributes?.submittedDate,
+        itemCount: x.relationships?.items?.data?.length ?? null,
+        canceled: x.attributes?.canceled,
+      }));
+    },
+  },
+  {
+    name: "get_review_submission",
+    description: "Get one review submission by id, including its app, the version under review, and its items.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+    run: async (a) =>
+      client.get(`/reviewSubmissions/${a.id}`, {
+        include: "app,appStoreVersionForReview,items",
+      }),
+  },
+  {
+    name: "add_review_submission_item",
+    description:
+      "Add an App Store version to an existing (open) review submission. POST /reviewSubmissionItems.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        reviewSubmissionId: { type: "string" },
+        versionId: { type: "string" },
+      },
+      required: ["reviewSubmissionId", "versionId"],
+    },
+    run: async (a) =>
+      client.post(`/reviewSubmissionItems`, {
+        data: {
+          type: "reviewSubmissionItems",
+          relationships: {
+            reviewSubmission: { data: { type: "reviewSubmissions", id: a.reviewSubmissionId } },
+            appStoreVersion: { data: { type: "appStoreVersions", id: a.versionId } },
+          },
+        },
+      }),
+  },
+  {
+    name: "cancel_review_submission",
+    description:
+      "Cancel (pull back) a review submission that's in review — required before you can attach a different build. PATCH /reviewSubmissions/{id} {canceled:true}. Apple refuses cancel on an empty (0-item) submission and on submissions not in a cancellable state; this surfaces that cleanly. Pass submissionId, or appId to cancel the app's current in-flight submission. Optionally waitSeconds to poll until it reaches a terminal state.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        submissionId: { type: "string" },
+        appId: { type: "string", description: "Cancel the app's current in-flight submission (if submissionId omitted)" },
+        waitSeconds: { type: "number", description: "Poll until canceled/complete, up to this long" },
+      },
+    },
+    run: async (a) => {
+      let id = a.submissionId;
+      if (!id) {
+        if (!a.appId) return { error: "Pass submissionId or appId." };
+        const { data } = await client.getAllPages(`/reviewSubmissions`, {
+          "filter[app]": a.appId,
+          include: "items",
+        });
+        const active = data.find((s) =>
+          ["READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW", "UNRESOLVED_ISSUES"].includes(
+            s.attributes?.state,
+          ),
+        );
+        if (!active)
+          return { error: "No in-flight review submission found for this app." };
+        id = active.id;
+      }
+      try {
+        const res = await client.patch(`/reviewSubmissions/${id}`, {
+          data: { type: "reviewSubmissions", id, attributes: { canceled: true } },
+        });
+        let state = res.data?.attributes?.state;
+        if (a.waitSeconds) {
+          const deadline = Date.now() + a.waitSeconds * 1000;
+          while (Date.now() < deadline && state !== "COMPLETE" && state !== "CANCELING") {
+            await new Promise((r) => setTimeout(r, 10000));
+            const cur = await client.get(`/reviewSubmissions/${id}`);
+            state = cur.data?.attributes?.state;
+            if (state === "COMPLETE") break;
+          }
+        }
+        return { canceled: true, submissionId: id, state };
+      } catch (e) {
+        return {
+          canceled: false,
+          submissionId: id,
+          error: e.message,
+          hint: "Apple refuses cancel on an empty (0-item) or non-cancellable submission. Check its state with get_review_submission.",
+        };
+      }
+    },
+  },
+  {
+    name: "get_app_store_review_detail",
+    description:
+      "Get the App Store review contact details and notes for a version (GET /appStoreVersions/{id}/appStoreReviewDetail): contact name/email/phone, demo account, review notes.",
+    inputSchema: {
+      type: "object",
+      properties: { versionId: { type: "string" } },
+      required: ["versionId"],
+    },
+    run: async (a) => {
+      try {
+        return await client.get(`/appStoreVersions/${a.versionId}/appStoreReviewDetail`);
+      } catch (e) {
+        if (e.status === 404) return { note: "No review detail set for this version yet.", versionId: a.versionId };
+        throw e;
+      }
+    },
+  },
+  {
+    name: "get_beta_review_status",
+    description:
+      "Get the TestFlight beta review status for a build (its betaAppReviewSubmission state: WAITING_FOR_REVIEW, IN_REVIEW, APPROVED, REJECTED). Pass buildId or buildNumber(+appId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        buildId: { type: "string" },
+        buildNumber: { type: "string" },
+        appId: { type: "string" },
+      },
+    },
+    run: async (a) => {
+      const build = await resolveBuild(a.appId, a.buildId || a.buildNumber);
+      try {
+        const res = await client.get(`/builds/${build.id}/betaAppReviewSubmission`);
+        return { buildId: build.id, buildNumber: build.attributes?.version, betaReviewState: res.data?.attributes?.betaReviewState };
+      } catch (e) {
+        if (e.status === 404)
+          return { buildId: build.id, betaReviewState: null, note: "No beta review submission for this build." };
+        throw e;
+      }
+    },
+  },
+  {
+    name: "set_beta_build_notes",
+    description:
+      "Set the TestFlight \"What to Test\" notes for a build in a locale (betaBuildLocalizations — upserts the locale's whatsNew). Pass buildId or buildNumber(+appId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        buildId: { type: "string" },
+        buildNumber: { type: "string" },
+        appId: { type: "string" },
+        locale: { type: "string", description: "e.g. 'en-US' (default)" },
+        whatsNew: { type: "string", description: "The 'What to Test' text" },
+      },
+      required: ["whatsNew"],
+    },
+    run: async (a) => {
+      const build = await resolveBuild(a.appId, a.buildId || a.buildNumber);
+      const locale = a.locale || "en-US";
+      const existing = await client.getAll(`/builds/${build.id}/betaBuildLocalizations`);
+      const row = existing.find((x) => x.attributes?.locale === locale);
+      if (row) {
+        const res = await client.patch(`/betaBuildLocalizations/${row.id}`, {
+          data: { type: "betaBuildLocalizations", id: row.id, attributes: { whatsNew: a.whatsNew } },
+        });
+        return { buildId: build.id, locale, updated: true, id: row.id, result: res.data?.attributes };
+      }
+      const res = await client.post(`/betaBuildLocalizations`, {
+        data: {
+          type: "betaBuildLocalizations",
+          attributes: { locale, whatsNew: a.whatsNew },
+          relationships: { build: { data: { type: "builds", id: build.id } } },
+        },
+      });
+      return { buildId: build.id, locale, created: true, id: res.data?.id };
+    },
+  },
+
+  // ---- Screenshots: bulk + ordering + audit ----
+  {
+    name: "find_incomplete_screenshots",
+    description:
+      "For a version, list every screenshot and preview across all locales/sizes whose assetDeliveryState.state is not COMPLETE. These silently block submission (ASC shows \"uploads in progress\"). Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: { versionId: { type: "string" } },
+      required: ["versionId"],
+    },
+    run: async (a) => {
+      const stuck = await findIncompleteAssets(a.versionId);
+      return {
+        versionId: a.versionId,
+        incompleteScreenshots: stuck.screenshots,
+        incompletePreviews: stuck.previews,
+        allComplete: stuck.screenshots.length === 0 && stuck.previews.length === 0,
+      };
+    },
+  },
+  {
+    name: "reorder_screenshots",
+    description:
+      "Set the display order of screenshots within a set (new uploads always append last, so call this after re-uploading). Pass the full ordered list of screenshot ids. PATCH /appScreenshotSets/{id}/relationships/appScreenshots.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        screenshotSetId: { type: "string" },
+        orderedIds: { type: "array", items: { type: "string" }, description: "All screenshot ids in the desired order" },
+      },
+      required: ["screenshotSetId", "orderedIds"],
+    },
+    run: async (a) => {
+      await client.patch(`/appScreenshotSets/${a.screenshotSetId}/relationships/appScreenshots`, {
+        data: a.orderedIds.map((id) => ({ type: "appScreenshots", id })),
+      });
+      return { screenshotSetId: a.screenshotSetId, order: a.orderedIds };
+    },
+  },
+  {
+    name: "replace_screenshots",
+    description:
+      "Replace all screenshots in a set: delete the existing ones, then upload the given files in order (one call instead of deleting and uploading each by hand). Provide absolute paths to PNG/JPEG files sized for the set's device type.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        screenshotSetId: { type: "string" },
+        filePaths: { type: "array", items: { type: "string" }, description: "Absolute paths, in display order" },
+      },
+      required: ["screenshotSetId", "filePaths"],
+    },
+    run: async (a) => {
+      const existing = await client.getAll(`/appScreenshotSets/${a.screenshotSetId}/appScreenshots`);
+      let deleted = 0;
+      for (const s of existing) {
+        await client.delete(`/appScreenshots/${s.id}`);
+        deleted++;
+      }
+      const uploaded = [];
+      for (const fp of a.filePaths) {
+        if (!existsSync(fp)) return { error: `File not found: ${fp}`, deleted, uploaded };
+        uploaded.push(await uploadScreenshotFile(a.screenshotSetId, fp));
+      }
+      // New uploads preserve insertion order already, but set it explicitly.
+      if (uploaded.length > 1)
+        await client.patch(`/appScreenshotSets/${a.screenshotSetId}/relationships/appScreenshots`, {
+          data: uploaded.map((u) => ({ type: "appScreenshots", id: u.id })),
+        });
+      return { screenshotSetId: a.screenshotSetId, deleted, uploaded };
+    },
+  },
+
+  // ---- Territories ----
+  {
+    name: "list_app_territories",
+    description:
+      "Compact list of the territories an app is available in, plus whether new territories are added automatically. Summarizes appAvailabilityV2 (which is huge to dump raw).",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      try {
+        const { data, included } = await client.getAllPages(
+          `/apps/${a.appId}/appAvailabilityV2`,
+          { include: "territoryAvailabilities", "limit[territoryAvailabilities]": 200 },
+        );
+        const root = Array.isArray(data) ? data[0] : data;
+        const avail = included.filter((i) => i.type === "territoryAvailabilities");
+        const codes = avail
+          .filter((t) => t.attributes?.available !== false)
+          .map((t) => t.relationships?.territory?.data?.id)
+          .filter(Boolean)
+          .sort();
+        return {
+          appId: a.appId,
+          availableInNewTerritories: root?.attributes?.availableInNewTerritories,
+          territoryCount: codes.length,
+          territories: codes,
+        };
+      } catch (e) {
+        // Fallback to the older availableTerritories relationship.
+        const data = await client.getAll(`/apps/${a.appId}/availableTerritories`, { limit: 200 });
+        const codes = data.map((t) => t.id).sort();
+        return { appId: a.appId, territoryCount: codes.length, territories: codes, note: "via availableTerritories" };
+      }
+    },
+  },
+
+  // ---- Subscriptions (groups, subscriptions, offers) ----
+  {
+    name: "list_subscription_groups",
+    description:
+      "List an app's subscription groups (referenceName + id). Use a group id with list_subscriptions.",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const data = await client.getAll(`/apps/${a.appId}/subscriptionGroups`, { limit: 200 });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "list_subscriptions",
+    description:
+      "List the subscriptions in a subscription group (name, productId, state, subscriptionPeriod).",
+    inputSchema: {
+      type: "object",
+      properties: { groupId: { type: "string" } },
+      required: ["groupId"],
+    },
+    run: async (a) => {
+      const data = await client.getAll(`/subscriptionGroups/${a.groupId}/subscriptions`, { limit: 200 });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "list_subscription_offers",
+    description:
+      "List a subscription's introductory, promotional and win-back offers, and FLAG any whose active date ranges OVERLAP — overlapping offers make StoreKit drop the product (seen as a sandbox countMismatch). Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: { subscriptionId: { type: "string" } },
+      required: ["subscriptionId"],
+    },
+    run: async (a) => {
+      const kinds = [
+        ["introductory", "introductoryOffers"],
+        ["promotional", "promotionalOffers"],
+        ["winBack", "winBackOffers"],
+      ];
+      const offers = [];
+      for (const [kind, rel] of kinds) {
+        try {
+          const data = await client.getAll(`/subscriptions/${a.subscriptionId}/${rel}`, { limit: 200 });
+          for (const o of data)
+            offers.push({ id: o.id, kind, ...o.attributes });
+        } catch {
+          /* some offer kinds may be unavailable */
+        }
+      }
+      const overlaps = detectOverlappingOffers(offers);
+      return {
+        subscriptionId: a.subscriptionId,
+        offerCount: offers.length,
+        offers,
+        overlappingOffers: overlaps,
+        warning: overlaps.length
+          ? `${overlaps.length} overlapping offer pair(s) — this can make StoreKit drop the product in sandbox. Remove or re-date the overlaps.`
+          : null,
+      };
+    },
+  },
+  {
+    name: "create_subscription_group",
+    description:
+      "Create a subscription group for an app (POST /subscriptionGroups). referenceName is internal only. Add subscriptions with create_subscription.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        referenceName: { type: "string" },
+      },
+      required: ["appId", "referenceName"],
+    },
+    run: async (a) =>
+      client.post(`/subscriptionGroups`, {
+        data: {
+          type: "subscriptionGroups",
+          attributes: { referenceName: a.referenceName },
+          relationships: { app: { data: { type: "apps", id: a.appId } } },
+        },
+      }),
+  },
+  {
+    name: "create_subscription",
+    description:
+      "Create an auto-renewable subscription in a group (POST /subscriptions). subscriptionPeriod: ONE_WEEK, ONE_MONTH, TWO_MONTHS, THREE_MONTHS, SIX_MONTHS, ONE_YEAR. productId must be globally unique. Localizations, prices (see apply_ppp_prices) and review screenshot are separate steps. NOTE: a first-time subscription must be ticked for review on the version page — the API can't submit it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        groupId: { type: "string" },
+        name: { type: "string", description: "Reference name (internal)" },
+        productId: { type: "string" },
+        subscriptionPeriod: { type: "string" },
+        groupLevel: { type: "number", description: "Rank within the group (default 1)" },
+        familySharable: { type: "boolean" },
+      },
+      required: ["groupId", "name", "productId", "subscriptionPeriod"],
+    },
+    run: async (a) => {
+      const attributes = {
+        name: a.name,
+        productId: a.productId,
+        subscriptionPeriod: a.subscriptionPeriod,
+        groupLevel: a.groupLevel ?? 1,
+      };
+      if (a.familySharable !== undefined) attributes.familySharable = a.familySharable;
+      return client.post(`/subscriptions`, {
+        data: {
+          type: "subscriptions",
+          attributes,
+          relationships: { group: { data: { type: "subscriptionGroups", id: a.groupId } } },
+        },
+      });
+    },
+  },
+  {
+    name: "create_in_app_purchase",
+    description:
+      "Create a consumable / non-consumable / non-renewing IAP (POST /v2/inAppPurchases). inAppPurchaseType: CONSUMABLE, NON_CONSUMABLE, NON_RENEWING_SUBSCRIPTION. productId must be globally unique. Optionally sets the default-locale name/description. Pricing (set_app_price / apply_ppp_prices) and review submission are separate; a first-time IAP must be ticked for review on the version page.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        name: { type: "string", description: "Reference name" },
+        productId: { type: "string" },
+        inAppPurchaseType: { type: "string" },
+        locale: { type: "string", description: "Optional: create a localization in this locale" },
+        displayName: { type: "string", description: "Customer-facing name (with locale)" },
+        description: { type: "string", description: "Customer-facing description (with locale)" },
+        familySharable: { type: "boolean" },
+      },
+      required: ["appId", "name", "productId", "inAppPurchaseType"],
+    },
+    run: async (a) => {
+      const attributes = { name: a.name, productId: a.productId, inAppPurchaseType: a.inAppPurchaseType };
+      if (a.familySharable !== undefined) attributes.familySharable = a.familySharable;
+      const created = await client.post(`/inAppPurchases`, {
+        data: {
+          type: "inAppPurchases",
+          attributes,
+          relationships: { app: { data: { type: "apps", id: a.appId } } },
+        },
+      });
+      const iapId = created.data?.id;
+      let localization = null;
+      if (a.locale && (a.displayName || a.description)) {
+        const locAttrs = { locale: a.locale };
+        if (a.displayName) locAttrs.name = a.displayName;
+        if (a.description) locAttrs.description = a.description;
+        localization = await client.post(`/inAppPurchaseLocalizations`, {
+          data: {
+            type: "inAppPurchaseLocalizations",
+            attributes: locAttrs,
+            relationships: { inAppPurchaseV2: { data: { type: "inAppPurchases", id: iapId } } },
+          },
+        });
+      }
+      return {
+        id: iapId,
+        productId: a.productId,
+        type: a.inAppPurchaseType,
+        localization: localization?.data?.id || null,
+        note: "Set a price (set_app_price / apply_ppp_prices) and tick the IAP for review on the version page — the API can't submit a first-time IAP.",
+      };
+    },
+  },
+
+  // ---- Diagnostics & orchestrators ----
+  {
+    name: "diagnose_submission",
+    description:
+      "Read-only pre-submit check for a version: is a build attached and VALID, is export compliance set on it, is usesIdfa set, and are any screenshots/previews still processing. Returns the exact blockers that would cause submit_for_review's opaque 409.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        versionId: { type: "string" },
+      },
+      required: ["appId", "versionId"],
+    },
+    run: async (a) => {
+      const issues = await diagnoseSubmitBlockers(a.appId, a.versionId);
+      return { versionId: a.versionId, ready: issues.length === 0, blockers: issues };
+    },
+  },
+  {
+    name: "swap_build",
+    description:
+      "Swap the build on a version in one action: (1) wait for the new build to finish processing, (2) cancel the current in-flight review submission if there is one, (3) attach the new build to the version. Reports any IAPs/subscriptions that may need re-selecting. NOTE: changes submission state — confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        versionId: { type: "string" },
+        buildNumber: { type: "string", description: "New build number (or buildId)" },
+        buildId: { type: "string" },
+        waitTimeoutSeconds: { type: "number", description: "Max wait for processing (default 600)" },
+      },
+      required: ["appId", "versionId"],
+    },
+    run: async (a) => {
+      const steps = {};
+      // 1. Ensure the build is processed.
+      const build = await resolveBuild(a.appId, a.buildId || a.buildNumber);
+      if (build.attributes?.processingState !== "VALID") {
+        const timeout = (a.waitTimeoutSeconds ?? 600) * 1000;
+        const deadline = Date.now() + timeout;
+        let state = build.attributes?.processingState;
+        while (Date.now() < deadline && !["VALID", "INVALID", "FAILED"].includes(state)) {
+          await new Promise((r) => setTimeout(r, 15000));
+          const cur = await resolveBuild(a.appId, build.id);
+          state = cur.attributes?.processingState;
+        }
+        steps.processing = state;
+        if (state !== "VALID")
+          return { ok: false, failedStep: "wait_for_processing", processingState: state, ...steps };
+      } else steps.processing = "VALID";
+
+      // 2. Cancel any in-flight review submission.
+      try {
+        const { data } = await client.getAllPages(`/reviewSubmissions`, { "filter[app]": a.appId });
+        const active = data.find((s) =>
+          ["READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW", "UNRESOLVED_ISSUES"].includes(
+            s.attributes?.state,
+          ),
+        );
+        if (active) {
+          await client.patch(`/reviewSubmissions/${active.id}`, {
+            data: { type: "reviewSubmissions", id: active.id, attributes: { canceled: true } },
+          });
+          steps.canceledSubmission = active.id;
+        } else steps.canceledSubmission = null;
+      } catch (e) {
+        steps.cancelError = e.message;
+      }
+
+      // 3. Attach.
+      await client.patch(`/appStoreVersions/${a.versionId}/relationships/build`, {
+        data: { type: "builds", id: build.id },
+      });
+      steps.attachedBuild = { id: build.id, number: build.attributes?.version };
+
+      return {
+        ok: true,
+        ...steps,
+        reminder:
+          "After swapping a build, re-confirm any in-app purchases attached to the version and re-run diagnose_submission before submitting.",
+      };
+    },
+  },
+  {
+    name: "release_pipeline",
+    description:
+      "Run the repeated pre-submit sequence for a version: optionally attach a build, run diagnose_submission, and (only if there are no blockers and submit:true) submit for review. Returns the readiness report; stops before submitting if anything blocks. NOTE: with submit:true this sends the app to Apple review — confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        versionId: { type: "string" },
+        buildNumber: { type: "string", description: "Optional: attach this build first" },
+        buildId: { type: "string" },
+        submit: { type: "boolean", description: "Submit for review if there are no blockers (default false)" },
+      },
+      required: ["appId", "versionId"],
+    },
+    run: async (a) => {
+      const out = {};
+      if (a.buildId || a.buildNumber) {
+        const build = await resolveBuild(a.appId, a.buildId || a.buildNumber);
+        await client.patch(`/appStoreVersions/${a.versionId}/relationships/build`, {
+          data: { type: "builds", id: build.id },
+        });
+        out.attachedBuild = { id: build.id, number: build.attributes?.version };
+      }
+      const blockers = await diagnoseSubmitBlockers(a.appId, a.versionId);
+      out.blockers = blockers;
+      out.ready = blockers.length === 0;
+      if (!out.ready) {
+        out.submitted = false;
+        out.note = "Blockers found — not submitting. Fix them and re-run.";
+        return out;
+      }
+      if (!a.submit) {
+        out.submitted = false;
+        out.note = "Ready. Re-run with submit:true (after user confirmation) to submit for review.";
+        return out;
+      }
+      const sub = await client.post("/reviewSubmissions", {
+        data: {
+          type: "reviewSubmissions",
+          attributes: { platform: "IOS" },
+          relationships: { app: { data: { type: "apps", id: a.appId } } },
+        },
+      });
+      const subId = sub.data.id;
+      await client.post("/reviewSubmissionItems", {
+        data: {
+          type: "reviewSubmissionItems",
+          relationships: {
+            reviewSubmission: { data: { type: "reviewSubmissions", id: subId } },
+            appStoreVersion: { data: { type: "appStoreVersions", id: a.versionId } },
+          },
+        },
+      });
+      await client.patch(`/reviewSubmissions/${subId}`, {
+        data: { type: "reviewSubmissions", id: subId, attributes: { submitted: true } },
+      });
+      out.submitted = true;
+      out.reviewSubmissionId = subId;
+      return out;
+    },
+  },
+  {
+    name: "bulk_upsert_localizations",
+    description:
+      "Upsert listing text across many locales in one call. `localizations` maps locale → fields. Version-localization fields: description, keywords, promotionalText, whatsNew, marketingUrl, supportUrl. App-info fields: name, subtitle, privacyPolicyUrl. Creates missing locales and updates existing ones, for BOTH the version and the appInfo. Whitespace (incl. non-breaking spaces) is sent verbatim. Set dryRun:true to see what would change.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        versionId: { type: "string" },
+        localizations: {
+          type: "object",
+          description: "{ \"fr-FR\": { name, subtitle, description, keywords, whatsNew, ... }, ... }",
+          additionalProperties: { type: "object" },
+        },
+        dryRun: { type: "boolean" },
+      },
+      required: ["versionId", "localizations"],
+    },
+    run: async (a) => {
+      const VERSION_FIELDS = ["description", "keywords", "promotionalText", "whatsNew", "marketingUrl", "supportUrl"];
+      const APPINFO_FIELDS = ["name", "subtitle", "privacyPolicyUrl", "privacyPolicyText"];
+      // Resolve appId + appInfo for the appInfo-side upserts.
+      const v = await client.get(`/appStoreVersions/${a.versionId}`, { include: "app" });
+      const appId = v.data?.relationships?.app?.data?.id;
+      const existingVerLocs = await client.getAll(
+        `/appStoreVersions/${a.versionId}/appStoreVersionLocalizations`,
+      );
+      let appInfoId = null;
+      let existingInfoLocs = [];
+      if (appId) {
+        const infos = await client.getAll(`/apps/${appId}/appInfos`);
+        if (infos.length) {
+          appInfoId = infos[0].id;
+          existingInfoLocs = await client.getAll(`/appInfos/${appInfoId}/appInfoLocalizations`);
+        }
+      }
+
+      const plan = [];
+      for (const [locale, fields] of Object.entries(a.localizations)) {
+        const verAttrs = {};
+        const infoAttrs = {};
+        for (const [k, val] of Object.entries(fields)) {
+          if (VERSION_FIELDS.includes(k)) verAttrs[k] = val;
+          else if (APPINFO_FIELDS.includes(k)) infoAttrs[k] = val;
+        }
+        if (Object.keys(verAttrs).length) {
+          const row = existingVerLocs.find((x) => x.attributes?.locale === locale);
+          plan.push({ kind: "version", locale, op: row ? "update" : "create", id: row?.id, attrs: verAttrs });
+        }
+        if (Object.keys(infoAttrs).length && appInfoId) {
+          const row = existingInfoLocs.find((x) => x.attributes?.locale === locale);
+          plan.push({ kind: "appInfo", locale, op: row ? "update" : "create", id: row?.id, attrs: infoAttrs });
+        }
+      }
+
+      if (a.dryRun) return { dryRun: true, versionId: a.versionId, appInfoId, plan };
+
+      const results = [];
+      for (const step of plan) {
+        try {
+          if (step.kind === "version") {
+            if (step.op === "update")
+              await client.patch(`/appStoreVersionLocalizations/${step.id}`, {
+                data: { type: "appStoreVersionLocalizations", id: step.id, attributes: step.attrs },
+              });
+            else
+              await client.post(`/appStoreVersionLocalizations`, {
+                data: {
+                  type: "appStoreVersionLocalizations",
+                  attributes: { locale: step.locale, ...step.attrs },
+                  relationships: { appStoreVersion: { data: { type: "appStoreVersions", id: a.versionId } } },
+                },
+              });
+          } else {
+            if (step.op === "update")
+              await client.patch(`/appInfoLocalizations/${step.id}`, {
+                data: { type: "appInfoLocalizations", id: step.id, attributes: step.attrs },
+              });
+            else
+              await client.post(`/appInfoLocalizations`, {
+                data: {
+                  type: "appInfoLocalizations",
+                  attributes: { locale: step.locale, ...step.attrs },
+                  relationships: { appInfo: { data: { type: "appInfos", id: appInfoId } } },
+                },
+              });
+          }
+          results.push({ ...step, ok: true, attrs: undefined });
+        } catch (e) {
+          results.push({ kind: step.kind, locale: step.locale, op: step.op, ok: false, error: e.message });
+        }
+      }
+      return {
+        versionId: a.versionId,
+        applied: results.filter((r) => r.ok).length,
+        failed: results.filter((r) => !r.ok).length,
+        results,
+      };
+    },
+  },
+
   // ---- Generic escape hatch ----
   {
     name: "raw_request",
@@ -3835,7 +5048,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.14.0" },
+  { name: "appstore-api-mcp", version: "1.15.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 
