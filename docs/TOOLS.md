@@ -503,6 +503,49 @@ in `list_builds` and can be submitted with `submit_for_review`.
 
 ---
 
+## iOS CI/CD → TestFlight bootstrap
+
+Turn a new iOS app into a fastlane + GitHub Actions → TestFlight pipeline in one
+call. Signing is Xcode automatic ("cloud") signing via `-allowProvisioningUpdates`
+— no `match` repo. The GitHub side shells out to the `gh` CLI (install + `gh auth
+login` required; reuses your existing auth, no extra token). The App Store Connect
+API key lives only in this server's environment and is exposed only through these
+high-level actions — never as an argument, never in output.
+
+> Create the App Store Connect API key **once at the TEAM level** (App Store
+> Connect → Users and Access → Integrations) so the same three secret values work
+> for every app/repo.
+
+### ensure_asc_app
+Find the App Store Connect app record for a bundle id. **Find-only:** the public
+API cannot create app records (there is no `POST /apps`), so `created` is always
+`false`. If missing, returns `found:false` plus guidance (register the bundle id,
+create the record once in the web UI).
+- `bundleId` **(required)**, `name`, `sku`, `platform`, `primaryLocale`
+- **Returns:** `{ app_id, created, found, bundleId, name }`
+
+### bootstrap_ios_cicd
+Scaffold the 7 pipeline files (`Gemfile`, `fastlane/{Appfile,Fastfile,.gitignore,
+SETUP.md}`, `.github/workflows/{ios-ci.yml,ios-testflight.yml}`). Auto-detects
+`appDir`/`bundleId`/`teamId`/`scheme`/`target` from the repo's `.xcodeproj`.
+- `repoDir` (local clone, default `.`), `repo` (`owner/name` for the PR), `owner`
+- overrides: `appDir`, `bundleId`, `teamId`, `scheme`, `target`
+- `mode`: `pr` (default — branch + push + open PR), `branch`, `commit`, `files`
+- `branch`, `baseBranch`, `dryRun` (preview detected values + rendered files)
+
+### set_repo_ci_secrets
+Push `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (base64) to the repo's Actions
+secrets via `gh secret set` (values piped over stdin; `gh` does the libsodium
+sealed-box encryption). Key material is read from this server's env, never echoed.
+- `repo` (`owner/name`), `owner`, `repoDir` (derive `owner/name` from `origin`)
+
+### bootstrap_testflight
+One-call orchestrator: `ensure_asc_app` → `bootstrap_ios_cicd` → `set_repo_ci_secrets`.
+If the app record doesn't exist yet, it still scaffolds + sets secrets and tells
+you to create the record in the web UI. Same options as `bootstrap_ios_cicd`.
+
+---
+
 ## Rate limits
 
 App Store Connect allows ~3,500 requests/hour and returns `429` when exceeded.

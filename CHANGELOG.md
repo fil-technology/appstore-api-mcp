@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] - 2026-06-13
+
+### Added
+- **iOS CI/CD → TestFlight bootstrap.** Turn a new iOS app into a fastlane +
+  GitHub Actions → TestFlight pipeline in one call:
+  - `ensure_asc_app` — find the App Store Connect app record for a bundle id
+    (find-only; the public API has no `POST /apps`, so it returns guidance when
+    the record doesn't exist yet).
+  - `bootstrap_ios_cicd` — scaffold the 7 pipeline files (Gemfile, fastlane
+    Appfile/Fastfile/.gitignore/SETUP.md, two GitHub Actions workflows) into the
+    app's repo, auto-detecting `appDir`/`bundleId`/`teamId`/`scheme`/`target`
+    from the `.xcodeproj`. Commits to a branch or opens a PR. Xcode automatic
+    ("cloud") signing via `-allowProvisioningUpdates` — no `match` repo.
+  - `set_repo_ci_secrets` — push `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_KEY_P8`
+    (base64) to the repo's Actions secrets. The API key is read from this
+    server's own config, never passed as an argument or returned in output;
+    values are piped to `gh secret set` over stdin.
+  - `bootstrap_testflight` — one-call orchestrator running all three.
+  - GitHub operations shell out to the `gh` CLI (no extra token, no new
+    dependency). The bootstrap writers respect read-only / safe mode.
+
 ## [1.12.0] - 2026-06-03
 
 ### Added

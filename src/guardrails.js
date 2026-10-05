@@ -42,6 +42,10 @@ export const WRITE_TOOLS = new Set([
   // build & ship (modify project / upload)
   "bump_build_number",
   "upload_build",
+  // CI/CD bootstrap (writes files / git / GitHub secrets)
+  "bootstrap_ios_cicd",
+  "set_repo_ci_secrets",
+  "bootstrap_testflight",
   // snapshots
   "restore_app_metadata",
   "restore_screenshots",

@@ -7,7 +7,7 @@ import {
   copyFileSync,
   readdirSync,
 } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, dirname } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -19,6 +19,12 @@ import {
 import { AppStoreConnectClient } from "./client.js";
 import { LIMITS, validateAttributes, buildDiff } from "./validation.js";
 import { writeBlockReason, writeModeSummary } from "./guardrails.js";
+import {
+  renderTemplates,
+  detectProject,
+  existingPipelineFiles,
+  parseRepoSlug,
+} from "./cicd.js";
 
 const client = new AppStoreConnectClient({
   keyId: process.env.ASC_KEY_ID,
@@ -119,6 +125,256 @@ function runCmd(cmd, args, opts = {}) {
 }
 
 const tail = (s, n = 40) => (s || "").split("\n").slice(-n).join("\n");
+
+/**
+ * Like runCmd, but pipes `input` to the child's stdin and closes it. Used to
+ * pass secret values to `gh secret set` without exposing them in argv/ps.
+ */
+function runCmdStdin(cmd, args, input, opts = {}) {
+  return new Promise((resolve) => {
+    const child = execFile(
+      cmd,
+      args,
+      {
+        cwd: opts.cwd,
+        timeout: opts.timeout || 0,
+        maxBuffer: 64 * 1024 * 1024,
+        env: process.env,
+      },
+      (err, stdout, stderr) => {
+        resolve({
+          code: err && typeof err.code === "number" ? err.code : err ? 1 : 0,
+          stdout: stdout || "",
+          stderr: stderr || "",
+          error: err ? err.message : null,
+        });
+      },
+    );
+    if (input != null && child.stdin) {
+      child.stdin.on("error", () => {});
+      child.stdin.write(input);
+      child.stdin.end();
+    }
+  });
+}
+
+// ---- iOS CI/CD → TestFlight bootstrap helpers ----
+
+/** Ensure the `gh` CLI is installed and authenticated; throw friendly guidance. */
+async function ensureGh() {
+  const v = await runCmd("gh", ["--version"]);
+  if (v.code !== 0)
+    throw new Error(
+      "GitHub CLI (`gh`) not found. Install it from https://cli.github.com (e.g. `brew install gh`), then `gh auth login`.",
+    );
+  const auth = await runCmd("gh", ["auth", "status"]);
+  if (auth.code !== 0)
+    throw new Error(
+      "GitHub CLI is not authenticated. Run `gh auth login` (needs repo admin to set Actions secrets).",
+    );
+}
+
+/** Resolve the GitHub owner/name slug for a tool call (explicit wins, else origin). */
+async function resolveRepoSlug({ repo, owner, repoDir }) {
+  if (repo && repo.includes("/")) return repo;
+  if (repo && owner) return `${owner}/${repo}`;
+  const r = await runCmd("git", ["-C", repoDir || ".", "remote", "get-url", "origin"]);
+  const slug = r.code === 0 ? parseRepoSlug(r.stdout) : null;
+  if (repo && slug) return `${slug.split("/")[0]}/${repo}`; // repo name + origin owner
+  if (slug) return slug;
+  throw new Error(
+    "Could not determine the GitHub repo. Pass `repo` as \"owner/name\", or run from a clone with an `origin` remote.",
+  );
+}
+
+/**
+ * Read the App Store Connect API key material from THIS server's own config
+ * (env), returning the three CI secret values. The .p8 is base64-encoded as
+ * GitHub Actions / fastlane (is_key_content_base64) expect. Never logged or
+ * returned to tool output — only handed to `gh secret set` over stdin.
+ */
+function ascSecretValues() {
+  const keyId = process.env.ASC_KEY_ID;
+  const issuerId = process.env.ASC_ISSUER_ID;
+  if (!keyId || !issuerId)
+    throw new Error(
+      "ASC_KEY_ID / ASC_ISSUER_ID are not set on this server. Configure the App Store Connect API key in the server's environment first.",
+    );
+  // p8 → base64, mirroring client.js precedence: base64 env, inline PEM, path.
+  let p8b64;
+  if (process.env.ASC_PRIVATE_KEY_BASE64) {
+    p8b64 = process.env.ASC_PRIVATE_KEY_BASE64.replace(/\s+/g, "");
+  } else if (process.env.ASC_PRIVATE_KEY) {
+    p8b64 = Buffer.from(process.env.ASC_PRIVATE_KEY, "utf8").toString("base64");
+  } else if (process.env.ASC_PRIVATE_KEY_PATH) {
+    p8b64 = Buffer.from(
+      readFileSync(process.env.ASC_PRIVATE_KEY_PATH, "utf8"),
+      "utf8",
+    ).toString("base64");
+  } else {
+    throw new Error(
+      "No .p8 key configured. Set ASC_PRIVATE_KEY_PATH, ASC_PRIVATE_KEY, or ASC_PRIVATE_KEY_BASE64 on this server.",
+    );
+  }
+  return {
+    ASC_KEY_ID: keyId,
+    ASC_ISSUER_ID: issuerId,
+    ASC_KEY_P8: p8b64,
+  };
+}
+
+/** Find the App Store Connect app record for a bundle id (find-only). */
+async function findAppByBundleId(bundleId) {
+  const apps = await client.getAll("/apps", {
+    "filter[bundleId]": bundleId,
+    limit: 200,
+  });
+  // filter[bundleId] is a prefix-ish match on some accounts — require exact.
+  return apps.find((a) => a.attributes?.bundleId === bundleId) || null;
+}
+
+/**
+ * Shared bootstrap implementation (used by bootstrap_ios_cicd and the
+ * bootstrap_testflight orchestrator). Renders the pipeline files, then commits
+ * them to a branch / opens a PR via git + gh. Returns a structured report.
+ */
+async function doBootstrap(a) {
+  const repoDir = a.repoDir || ".";
+  if (!existsSync(repoDir))
+    return { error: `repoDir not found: ${repoDir}` };
+  const gitCheck = await runCmd("git", ["-C", repoDir, "rev-parse", "--show-toplevel"]);
+  if (gitCheck.code !== 0)
+    return { error: `${repoDir} is not a git repository.` };
+  const repoRoot = gitCheck.stdout.trim();
+
+  const { detected, missing, warnings } = detectProject(repoRoot, {
+    appDir: a.appDir,
+    bundleId: a.bundleId,
+    teamId: a.teamId,
+    scheme: a.scheme,
+    target: a.target,
+  });
+  if (missing.length)
+    return {
+      error: `Could not auto-detect ${missing.join(", ")}. Pass them explicitly.`,
+      detected,
+      warnings,
+    };
+
+  const files = renderTemplates(detected);
+  const existing = existingPipelineFiles(repoRoot, files);
+
+  if (a.dryRun) {
+    return {
+      dryRun: true,
+      detected,
+      warnings,
+      filesToWrite: Object.keys(files),
+      wouldOverwrite: existing,
+      files, // full rendered contents for review
+      note: "Nothing was written. Re-run without dryRun to apply.",
+    };
+  }
+
+  // Write files.
+  for (const [rel, contents] of Object.entries(files)) {
+    const abs = join(repoRoot, rel);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, contents);
+  }
+
+  const mode = a.mode || "pr";
+  const written = Object.keys(files);
+  const result = { detected, warnings, filesWritten: written, overwrote: existing, mode };
+
+  if (mode === "files") {
+    result.note = "Files written to the working tree; not committed (mode: files).";
+    return result;
+  }
+
+  // Commit on a branch.
+  const branch = a.branch || "ci/ios-testflight-bootstrap";
+  const base =
+    a.baseBranch ||
+    (await runCmd("git", ["-C", repoRoot, "symbolic-ref", "--quiet", "--short", "HEAD"])).stdout.trim() ||
+    "main";
+  const co = await runCmd("git", ["-C", repoRoot, "checkout", "-B", branch]);
+  if (co.code !== 0)
+    return { ...result, error: "git checkout failed", log: tail(co.stderr, 20) };
+  await runCmd("git", ["-C", repoRoot, "add", ...written]);
+  const commit = await runCmd("git", [
+    "-C", repoRoot, "commit", "-m", "ci: add fastlane + GitHub Actions TestFlight pipeline",
+  ]);
+  if (commit.code !== 0)
+    return {
+      ...result,
+      branch,
+      error: "git commit failed (nothing to commit, or git not configured).",
+      log: tail(commit.stdout + "\n" + commit.stderr, 20),
+    };
+  result.branch = branch;
+
+  if (mode === "commit") {
+    result.note = `Committed to branch ${branch}. Push and open a PR when ready.`;
+    return result;
+  }
+
+  // mode "branch" or "pr": push, and for "pr" open a PR.
+  await ensureGh();
+  const push = await runCmd("git", ["-C", repoRoot, "push", "-u", "origin", branch]);
+  if (push.code !== 0)
+    return { ...result, error: "git push failed", log: tail(push.stderr, 20) };
+
+  if (mode === "branch") {
+    result.note = `Pushed branch ${branch}. Open a PR when ready.`;
+    return result;
+  }
+
+  const pr = await runCmd("gh", [
+    "pr", "create",
+    "--repo", await resolveRepoSlug({ repo: a.repo, owner: a.owner, repoDir: repoRoot }),
+    "--head", branch,
+    "--base", base,
+    "--title", "Add iOS CI/CD → TestFlight pipeline",
+    "--body",
+    "Adds fastlane + two GitHub Actions workflows (simulator CI build + signed TestFlight upload via Xcode cloud signing).\n\nRequires the `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` repo secrets — set them with `set_repo_ci_secrets` if not already present.",
+  ]);
+  if (pr.code !== 0)
+    return { ...result, error: "gh pr create failed", log: tail(pr.stdout + "\n" + pr.stderr, 20) };
+  result.prUrl = pr.stdout.trim();
+  result.note = `Opened PR: ${result.prUrl}`;
+  return result;
+}
+
+/** Shared secret-pushing implementation (used by tool + orchestrator). */
+async function doSetSecrets(a) {
+  await ensureGh();
+  const slug = await resolveRepoSlug({
+    repo: a.repo,
+    owner: a.owner,
+    repoDir: a.repoDir || ".",
+  });
+  const secrets = ascSecretValues(); // throws if server creds are missing
+  const set = [];
+  for (const [name, value] of Object.entries(secrets)) {
+    const res = await runCmdStdin("gh", ["secret", "set", name, "--repo", slug], value);
+    if (res.code !== 0)
+      return {
+        repo: slug,
+        error: `Failed to set ${name}`,
+        log: tail(res.stderr, 20),
+        secretsSet: set,
+      };
+    set.push(name); // names only — values are never returned
+  }
+  return {
+    repo: slug,
+    secretsSet: set,
+    note: "Three Actions secrets set from this server's configured API key. Values were never exposed.",
+  };
+}
+
+
 
 /** Throw a friendly install-guidance error if Xcode CLI tools aren't available. */
 async function ensureXcode() {
@@ -2940,6 +3196,140 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
     },
   },
 
+  // ---- iOS CI/CD → TestFlight bootstrap ----
+  {
+    name: "ensure_asc_app",
+    description:
+      "Find the App Store Connect app record for a bundle id. Returns {app_id, created, bundleId, name}. NOTE: the public App Store Connect API cannot CREATE an app record (there is no POST /apps) — so this is find-only and always returns created:false. If the app doesn't exist yet, it returns found:false plus guidance: register the bundle id (register_bundle_id) and create the record once in the App Store Connect web UI (the first TestFlight upload also can't create it).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        bundleId: { type: "string", description: "e.g. com.example.app" },
+        name: { type: "string", description: "Unused for lookup; echoed back for convenience." },
+        sku: { type: "string" },
+        platform: { type: "string", description: "IOS (default)" },
+        primaryLocale: { type: "string" },
+      },
+      required: ["bundleId"],
+    },
+    run: async (a) => {
+      const app = await findAppByBundleId(a.bundleId);
+      if (app)
+        return {
+          app_id: app.id,
+          created: false,
+          found: true,
+          bundleId: app.attributes?.bundleId,
+          name: app.attributes?.name,
+        };
+      return {
+        app_id: null,
+        created: false,
+        found: false,
+        bundleId: a.bundleId,
+        action_needed:
+          "App record not found. The App Store Connect API cannot create it. Steps: 1) register the bundle id with register_bundle_id (if not registered), 2) create the app record in App Store Connect → My Apps → + → New App. Then re-run.",
+      };
+    },
+  },
+  {
+    name: "bootstrap_ios_cicd",
+    description:
+      "Scaffold a fastlane + GitHub Actions → TestFlight pipeline into an iOS app's repo. Renders 7 files (Gemfile, fastlane/{Appfile,Fastfile,.gitignore,SETUP.md}, .github/workflows/{ios-ci.yml,ios-testflight.yml}) using Xcode automatic/cloud signing (-allowProvisioningUpdates, no match repo). Auto-detects appDir/bundleId/teamId/scheme/target from the repo's .xcodeproj when not given. mode: 'pr' (default; branch+push+open PR via gh), 'branch' (push only), 'commit' (commit locally), 'files' (write only). Use dryRun:true to preview detected values and rendered files without writing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repoDir: { type: "string", description: "Local path to the repo working copy (default '.')" },
+        repo: { type: "string", description: "GitHub 'owner/name' for the PR (default: derived from origin)" },
+        owner: { type: "string", description: "GitHub owner, if repo is just a name" },
+        appDir: { type: "string", description: "Dir containing the .xcodeproj, relative to repo root (auto-detected)" },
+        bundleId: { type: "string", description: "Override auto-detected bundle id" },
+        teamId: { type: "string", description: "Override auto-detected Apple Developer team id" },
+        scheme: { type: "string", description: "Xcode scheme (default: project name)" },
+        target: { type: "string", description: "Xcode target (default: scheme)" },
+        mode: { type: "string", description: "pr (default), branch, commit, or files" },
+        branch: { type: "string", description: "Branch name (default ci/ios-testflight-bootstrap)" },
+        baseBranch: { type: "string", description: "PR base branch (default: current branch)" },
+        dryRun: { type: "boolean", description: "Preview without writing (default false)" },
+      },
+      required: [],
+    },
+    run: async (a) => doBootstrap(a),
+  },
+  {
+    name: "set_repo_ci_secrets",
+    description:
+      "Push the three CI secrets (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8) to a GitHub repo's Actions secrets via `gh secret set`. The .p8 is base64-encoded. CRITICAL: the API key is read from THIS server's own configured environment — it is never accepted as an argument and never returned in output. gh handles the libsodium sealed-box encryption. Requires `gh` installed + authenticated with repo admin. Create the App Store Connect API key once at the TEAM level so the same secret values work for every repo.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repo: { type: "string", description: "GitHub 'owner/name' (or just the name with owner/repoDir)" },
+        owner: { type: "string", description: "GitHub owner, if repo is just a name" },
+        repoDir: { type: "string", description: "Local clone to derive owner/name from origin (default '.')" },
+      },
+      required: [],
+    },
+    run: async (a) => doSetSecrets(a),
+  },
+  {
+    name: "bootstrap_testflight",
+    description:
+      "One-call orchestrator: turn a new iOS app into a TestFlight pipeline. Runs ensure_asc_app (find the app record) → bootstrap_ios_cicd (scaffold fastlane + Actions, open a PR) → set_repo_ci_secrets (push ASC_* secrets from this server's config). Auto-detects project settings. If the app record doesn't exist yet, it still scaffolds + sets secrets and tells you to create the record in the web UI. Pass the same options as bootstrap_ios_cicd; use dryRun:true to preview.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repoDir: { type: "string", description: "Local path to the repo (default '.')" },
+        repo: { type: "string", description: "GitHub 'owner/name' (default: derived from origin)" },
+        owner: { type: "string" },
+        appDir: { type: "string" },
+        bundleId: { type: "string", description: "Override auto-detected bundle id" },
+        name: { type: "string", description: "App name (for the ensure_asc_app lookup echo)" },
+        teamId: { type: "string" },
+        scheme: { type: "string" },
+        target: { type: "string" },
+        mode: { type: "string", description: "pr (default), branch, commit, files" },
+        dryRun: { type: "boolean", description: "Preview without writing or pushing (default false)" },
+      },
+      required: [],
+    },
+    run: async (a) => {
+      const steps = {};
+
+      // 1. Scaffold (also resolves auto-detected bundleId we can reuse for the app lookup).
+      steps.bootstrap = await doBootstrap(a);
+      if (steps.bootstrap.error)
+        return { ok: false, failedStep: "bootstrap_ios_cicd", ...steps };
+      const bundleId = a.bundleId || steps.bootstrap.detected?.bundleId;
+
+      // 2. Find the ASC app record (find-only; never blocks the pipeline).
+      try {
+        const app = bundleId ? await findAppByBundleId(bundleId) : null;
+        steps.app = app
+          ? { app_id: app.id, created: false, found: true, bundleId, name: app.attributes?.name }
+          : {
+              app_id: null,
+              created: false,
+              found: false,
+              bundleId,
+              action_needed:
+                "App record not found — create it in App Store Connect → My Apps → New App (the API cannot create it). CI secrets and the pipeline are still set up; TestFlight uploads will work once the record exists.",
+            };
+      } catch (e) {
+        steps.app = { error: e.message };
+      }
+
+      if (a.dryRun) {
+        steps.secrets = { skipped: "dryRun — secrets not pushed" };
+        return { ok: true, dryRun: true, ...steps };
+      }
+
+      // 3. Push the CI secrets.
+      steps.secrets = await doSetSecrets(a);
+      const ok = !steps.secrets.error;
+      return { ok, ...steps };
+    },
+  },
+
   // ---- Generic escape hatch ----
   {
     name: "raw_request",
@@ -2985,7 +3375,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.12.0" },
+  { name: "appstore-api-mcp", version: "1.13.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 
