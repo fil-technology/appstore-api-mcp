@@ -29,6 +29,33 @@ export const WRITE_TOOLS = new Set([
   "update_in_app_purchase",
   "set_app_price",
   "apply_ppp_prices",
+  // custom product pages
+  "create_custom_product_page",
+  "create_custom_product_page_version",
+  "create_custom_product_page_localization",
+  "update_custom_product_page_localization",
+  // product page optimization (A/B experiments)
+  "create_ppo_experiment",
+  "start_ppo_experiment",
+  "stop_ppo_experiment",
+  "create_experiment_treatment",
+  "create_experiment_treatment_localization",
+  // asset library
+  "upload_asset_library_image",
+  "assign_asset_placement",
+  "delete_asset_placement",
+  // webhooks
+  "create_webhook",
+  "update_webhook",
+  "delete_webhook",
+  "ping_webhook",
+  // subscription offer codes
+  "create_subscription_offer_code",
+  "create_offer_code_one_time_use",
+  "create_offer_code_custom",
+  // in-app events
+  "create_app_event",
+  "create_app_event_localization",
   // provisioning
   "register_bundle_id",
   "register_device",

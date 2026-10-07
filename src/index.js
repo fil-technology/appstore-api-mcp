@@ -1505,30 +1505,31 @@ const tools = [
   {
     name: "create_screenshot_set",
     description:
-      "Create a screenshot set for a given device display type on a version localization. displayType examples: APP_IPHONE_67, APP_IPHONE_65, APP_IPHONE_61, APP_IPAD_PRO_129, APP_IPAD_PRO_3GEN_11.",
+      "Create a screenshot set for a given device display type on a localization. Attach to ONE of: a normal App Store version localization (localizationId), a Custom Product Page localization (customProductPageLocalizationId), or a Product Page Optimization experiment-treatment localization (treatmentLocalizationId). displayType examples: APP_IPHONE_67, APP_IPHONE_65, APP_IPHONE_61, APP_IPAD_PRO_129, APP_IPAD_PRO_3GEN_11. Upload images into the set with upload_screenshot.",
     inputSchema: {
       type: "object",
       properties: {
-        localizationId: { type: "string" },
+        localizationId: { type: "string", description: "App Store version localization id" },
+        customProductPageLocalizationId: { type: "string", description: "Custom Product Page localization id" },
+        treatmentLocalizationId: { type: "string", description: "PPO experiment treatment localization id" },
         displayType: { type: "string" },
       },
-      required: ["localizationId", "displayType"],
+      required: ["displayType"],
     },
-    run: async (a) =>
-      client.post(`/appScreenshotSets`, {
-        data: {
-          type: "appScreenshotSets",
-          attributes: { screenshotDisplayType: a.displayType },
-          relationships: {
-            appStoreVersionLocalization: {
-              data: {
-                type: "appStoreVersionLocalizations",
-                id: a.localizationId,
-              },
-            },
-          },
-        },
-      }),
+    run: async (a) => {
+      let relationships;
+      if (a.localizationId)
+        relationships = { appStoreVersionLocalization: { data: { type: "appStoreVersionLocalizations", id: a.localizationId } } };
+      else if (a.customProductPageLocalizationId)
+        relationships = { appCustomProductPageLocalization: { data: { type: "appCustomProductPageLocalizations", id: a.customProductPageLocalizationId } } };
+      else if (a.treatmentLocalizationId)
+        relationships = { appStoreVersionExperimentTreatmentLocalization: { data: { type: "appStoreVersionExperimentTreatmentLocalizations", id: a.treatmentLocalizationId } } };
+      else
+        return { error: "Provide one of localizationId, customProductPageLocalizationId, or treatmentLocalizationId." };
+      return client.post(`/appScreenshotSets`, {
+        data: { type: "appScreenshotSets", attributes: { screenshotDisplayType: a.displayType }, relationships },
+      });
+    },
   },
   {
     name: "list_screenshots",
@@ -1681,23 +1682,31 @@ const tools = [
   {
     name: "create_app_preview_set",
     description:
-      "Create an app preview (video) set for a device type on a version localization. previewType examples: IPHONE_67, IPHONE_61, IPAD_PRO_3GEN_129.",
+      "Create an app preview (video) set for a device type on a localization. Attach to ONE of: a version localization (localizationId), a Custom Product Page localization (customProductPageLocalizationId), or a PPO treatment localization (treatmentLocalizationId). previewType examples: IPHONE_67, IPHONE_61, IPAD_PRO_3GEN_129.",
     inputSchema: {
       type: "object",
       properties: {
         localizationId: { type: "string" },
+        customProductPageLocalizationId: { type: "string" },
+        treatmentLocalizationId: { type: "string" },
         previewType: { type: "string" },
       },
-      required: ["localizationId", "previewType"],
+      required: ["previewType"],
     },
-    run: async (a) =>
-      client.post(`/appPreviewSets`, {
-        data: {
-          type: "appPreviewSets",
-          attributes: { previewType: a.previewType },
-          relationships: { appStoreVersionLocalization: { data: { type: "appStoreVersionLocalizations", id: a.localizationId } } },
-        },
-      }),
+    run: async (a) => {
+      let relationships;
+      if (a.localizationId)
+        relationships = { appStoreVersionLocalization: { data: { type: "appStoreVersionLocalizations", id: a.localizationId } } };
+      else if (a.customProductPageLocalizationId)
+        relationships = { appCustomProductPageLocalization: { data: { type: "appCustomProductPageLocalizations", id: a.customProductPageLocalizationId } } };
+      else if (a.treatmentLocalizationId)
+        relationships = { appStoreVersionExperimentTreatmentLocalization: { data: { type: "appStoreVersionExperimentTreatmentLocalizations", id: a.treatmentLocalizationId } } };
+      else
+        return { error: "Provide one of localizationId, customProductPageLocalizationId, or treatmentLocalizationId." };
+      return client.post(`/appPreviewSets`, {
+        data: { type: "appPreviewSets", attributes: { previewType: a.previewType }, relationships },
+      });
+    },
   },
   {
     name: "list_app_previews",
@@ -5003,6 +5012,671 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
     },
   },
 
+  // ---- Custom Product Pages ----
+  {
+    name: "list_custom_product_pages",
+    description:
+      "List an app's Custom Product Pages (alternate product pages with their own screenshots/text, each reachable by a unique marketing URL). Returns id, name, url, visible.",
+    inputSchema: { type: "object", properties: { appId: { type: "string" } }, required: ["appId"] },
+    run: async (a) => {
+      const data = await client.getAll(`/apps/${a.appId}/appCustomProductPages`, { limit: 200 });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "get_custom_product_page",
+    description: "Get one Custom Product Page with its versions.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) =>
+      client.get(`/appCustomProductPages/${a.id}`, { include: "appCustomProductPageVersions" }),
+  },
+  {
+    name: "create_custom_product_page",
+    description:
+      "Create a Custom Product Page for an app (just a name + the app). Then add a version with create_custom_product_page_version and locale copy with create_custom_product_page_localization, and screenshots via create_screenshot_set(customProductPageLocalizationId). Submit for review via the review-submission tools.",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" }, name: { type: "string" } },
+      required: ["appId", "name"],
+    },
+    run: async (a) =>
+      client.post(`/appCustomProductPages`, {
+        data: {
+          type: "appCustomProductPages",
+          attributes: { name: a.name },
+          relationships: { app: { data: { type: "apps", id: a.appId } } },
+        },
+      }),
+  },
+  {
+    name: "list_custom_product_page_versions",
+    description: "List the versions of a Custom Product Page (id, version, state).",
+    inputSchema: { type: "object", properties: { customProductPageId: { type: "string" } }, required: ["customProductPageId"] },
+    run: async (a) => {
+      const data = await client.getAll(`/appCustomProductPages/${a.customProductPageId}/appCustomProductPageVersions`);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "create_custom_product_page_version",
+    description: "Create a new version of a Custom Product Page (optionally with a deepLink).",
+    inputSchema: {
+      type: "object",
+      properties: { customProductPageId: { type: "string" }, deepLink: { type: "string" } },
+      required: ["customProductPageId"],
+    },
+    run: async (a) => {
+      const attributes = {};
+      if (a.deepLink) attributes.deepLink = a.deepLink;
+      return client.post(`/appCustomProductPageVersions`, {
+        data: {
+          type: "appCustomProductPageVersions",
+          attributes,
+          relationships: { appCustomProductPage: { data: { type: "appCustomProductPages", id: a.customProductPageId } } },
+        },
+      });
+    },
+  },
+  {
+    name: "list_custom_product_page_localizations",
+    description: "List the per-locale copy of a Custom Product Page version (locale, promotionalText).",
+    inputSchema: { type: "object", properties: { versionId: { type: "string" } }, required: ["versionId"] },
+    run: async (a) => {
+      const data = await client.getAll(`/appCustomProductPageVersions/${a.versionId}/appCustomProductPageLocalizations`);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "create_custom_product_page_localization",
+    description: "Add a locale's copy (promotionalText) to a Custom Product Page version. Then attach screenshots with create_screenshot_set(customProductPageLocalizationId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        versionId: { type: "string" },
+        locale: { type: "string", description: "e.g. en-US" },
+        promotionalText: { type: "string" },
+      },
+      required: ["versionId", "locale"],
+    },
+    run: async (a) => {
+      const attributes = { locale: a.locale };
+      if (a.promotionalText !== undefined) attributes.promotionalText = a.promotionalText;
+      return client.post(`/appCustomProductPageLocalizations`, {
+        data: {
+          type: "appCustomProductPageLocalizations",
+          attributes,
+          relationships: { appCustomProductPageVersion: { data: { type: "appCustomProductPageVersions", id: a.versionId } } },
+        },
+      });
+    },
+  },
+  {
+    name: "update_custom_product_page_localization",
+    description: "Update the promotionalText of a Custom Product Page localization.",
+    inputSchema: {
+      type: "object",
+      properties: { localizationId: { type: "string" }, promotionalText: { type: "string" } },
+      required: ["localizationId", "promotionalText"],
+    },
+    run: async (a) =>
+      client.patch(`/appCustomProductPageLocalizations/${a.localizationId}`, {
+        data: { type: "appCustomProductPageLocalizations", id: a.localizationId, attributes: { promotionalText: a.promotionalText } },
+      }),
+  },
+
+  // ---- Product Page Optimization (appStoreVersionExperiments v2) ----
+  {
+    name: "list_ppo_experiments",
+    description:
+      "List Product Page Optimization A/B experiments (v2) for an App Store version. Returns id, name, state, trafficProportion, start/end dates.",
+    inputSchema: { type: "object", properties: { versionId: { type: "string", description: "appStoreVersion id" } }, required: ["versionId"] },
+    run: async (a) => {
+      const data = await client.getAll(`/appStoreVersions/${a.versionId}/appStoreVersionExperimentsV2`);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "get_ppo_experiment",
+    description:
+      "Get one PPO experiment (v2) with its treatments. NOTE: experiment RESULTS (conversion %, confidence) are not exposed by the App Store Connect API — view those in the App Store Connect web UI.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) =>
+      client.get(`/v2/appStoreVersionExperiments/${a.id}`, { include: "appStoreVersionExperimentTreatments" }),
+  },
+  {
+    name: "create_ppo_experiment",
+    description:
+      "Create a Product Page Optimization experiment (v2) on an app. trafficProportion is the percentage of traffic in the test (e.g. 66). Only one DRAFT experiment per app at a time. Then add treatments (create_experiment_treatment) and start it (start_ppo_experiment).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        name: { type: "string" },
+        trafficProportion: { type: "number", description: "Percent of traffic in the experiment, e.g. 66" },
+        platform: { type: "string", description: "IOS (default), MAC_OS, TV_OS" },
+      },
+      required: ["appId", "name", "trafficProportion"],
+    },
+    run: async (a) =>
+      client.post(`/v2/appStoreVersionExperiments`, {
+        data: {
+          type: "appStoreVersionExperiments",
+          attributes: { name: a.name, platform: a.platform || "IOS", trafficProportion: a.trafficProportion },
+          relationships: { app: { data: { type: "apps", id: a.appId } } },
+        },
+      }),
+  },
+  {
+    name: "start_ppo_experiment",
+    description: "Start a PPO experiment (v2). Sends it toward review/running. NOTE: this begins an A/B test shown to real users — confirm first.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) =>
+      client.patch(`/v2/appStoreVersionExperiments/${a.id}`, {
+        data: { type: "appStoreVersionExperiments", id: a.id, attributes: { started: true } },
+      }),
+  },
+  {
+    name: "stop_ppo_experiment",
+    description: "Stop/halt a running PPO experiment (v2). Halting preserves readable results (in the web UI); it does not delete the experiment.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) =>
+      client.patch(`/v2/appStoreVersionExperiments/${a.id}`, {
+        data: { type: "appStoreVersionExperiments", id: a.id, attributes: { started: false } },
+      }),
+  },
+  {
+    name: "list_experiment_treatments",
+    description: "List the treatments (variants) of a PPO experiment (v2).",
+    inputSchema: { type: "object", properties: { experimentId: { type: "string" } }, required: ["experimentId"] },
+    run: async (a) => {
+      const data = await client.getAll(`/v2/appStoreVersionExperiments/${a.experimentId}/appStoreVersionExperimentTreatments`);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "create_experiment_treatment",
+    description: "Add a treatment (variant) to a PPO experiment (v2). appIconName optionally tests an alternate app icon. Add locale copy with create_experiment_treatment_localization and screenshots via create_screenshot_set(treatmentLocalizationId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        experimentId: { type: "string" },
+        name: { type: "string" },
+        appIconName: { type: "string", description: "Optional alternate app icon asset name" },
+      },
+      required: ["experimentId", "name"],
+    },
+    run: async (a) => {
+      const attributes = { name: a.name };
+      if (a.appIconName) attributes.appIconName = a.appIconName;
+      return client.post(`/appStoreVersionExperimentTreatments`, {
+        data: {
+          type: "appStoreVersionExperimentTreatments",
+          attributes,
+          relationships: { appStoreVersionExperimentV2: { data: { type: "appStoreVersionExperiments", id: a.experimentId } } },
+        },
+      });
+    },
+  },
+  {
+    name: "create_experiment_treatment_localization",
+    description: "Add a locale to a PPO treatment (so you can attach localized screenshots to it).",
+    inputSchema: {
+      type: "object",
+      properties: { treatmentId: { type: "string" }, locale: { type: "string" } },
+      required: ["treatmentId", "locale"],
+    },
+    run: async (a) =>
+      client.post(`/appStoreVersionExperimentTreatmentLocalizations`, {
+        data: {
+          type: "appStoreVersionExperimentTreatmentLocalizations",
+          attributes: { locale: a.locale },
+          relationships: { appStoreVersionExperimentTreatment: { data: { type: "appStoreVersionExperimentTreatments", id: a.treatmentId } } },
+        },
+      }),
+  },
+
+  // ---- Asset Library (reusable media across pages / events) ----
+  {
+    name: "get_asset_library",
+    description: "Get an app's Asset Library (the per-app media library). Returns its id for the list/upload tools.",
+    inputSchema: { type: "object", properties: { appId: { type: "string" } }, required: ["appId"] },
+    run: async (a) => client.get(`/apps/${a.appId}/assetLibrary`),
+  },
+  {
+    name: "list_asset_library_images",
+    description: "List images in an app's Asset Library. category filter: CREATIVE_ASSETS or APP_SCREENSHOTS_AND_PREVIEWS.",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" }, category: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const lib = await client.get(`/apps/${a.appId}/assetLibrary`);
+      const libId = lib.data?.id;
+      const q = {};
+      if (a.category) q["filter[category]"] = a.category;
+      const data = await client.getAll(`/appAssetLibraries/${libId}/images`, q);
+      return { assetLibraryId: libId, images: data.map((x) => ({ id: x.id, ...x.attributes })) };
+    },
+  },
+  {
+    name: "list_asset_library_videos",
+    description: "List videos in an app's Asset Library.",
+    inputSchema: { type: "object", properties: { appId: { type: "string" } }, required: ["appId"] },
+    run: async (a) => {
+      const lib = await client.get(`/apps/${a.appId}/assetLibrary`);
+      const libId = lib.data?.id;
+      const data = await client.getAll(`/appAssetLibraries/${libId}/videos`);
+      return { assetLibraryId: libId, videos: data.map((x) => ({ id: x.id, ...x.attributes })) };
+    },
+  },
+  {
+    name: "upload_asset_library_image",
+    description:
+      "Upload an image into an app's Asset Library (reserve → upload → commit). category: CREATIVE_ASSETS (default) or APP_SCREENSHOTS_AND_PREVIEWS. Once uploaded, reuse it on a product page / event with assign_asset_placement.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        filePath: { type: "string", description: "Absolute path to the image" },
+        category: { type: "string", description: "CREATIVE_ASSETS (default) or APP_SCREENSHOTS_AND_PREVIEWS" },
+        referenceName: { type: "string" },
+      },
+      required: ["appId", "filePath"],
+    },
+    run: async (a) => {
+      if (!existsSync(a.filePath)) return { error: `File not found: ${a.filePath}` };
+      const lib = await client.get(`/apps/${a.appId}/assetLibrary`);
+      const libId = lib.data?.id;
+      if (!libId) return { error: "Could not resolve the app's asset library." };
+      const buf = readFileSync(a.filePath);
+      const fileName = basename(a.filePath);
+      const attributes = { category: a.category || "CREATIVE_ASSETS", fileName, fileSize: buf.length };
+      if (a.referenceName) attributes.referenceName = a.referenceName;
+      const reservation = await client.post(`/appAssetLibraryImages`, {
+        data: {
+          type: "appAssetLibraryImages",
+          attributes,
+          relationships: { assetLibrary: { data: { type: "appAssetLibraries", id: libId } } },
+        },
+      });
+      const id = reservation.data.id;
+      await client.uploadAsset(reservation.data.attributes.uploadOperations, buf);
+      const committed = await client.patch(`/appAssetLibraryImages/${id}`, {
+        data: { type: "appAssetLibraryImages", id, attributes: { uploaded: true, sourceFileChecksum: AppStoreConnectClient.md5(buf) } },
+      });
+      const at = committed?.data?.attributes || {};
+      return { id, assetLibraryId: libId, fileName: at.fileName || fileName, state: at.assetState || at.state };
+    },
+  },
+  {
+    name: "assign_asset_placement",
+    description:
+      "Reuse an Asset Library image/video on a destination localization by creating a placement. Provide the source (imageId or videoId) and exactly ONE destination localization id. placementType examples: APP_SCREENSHOT, APP_PREVIEW, PRODUCT_PAGE_HEADER_ASSET, EVENT_CARD_ASSET, EVENT_DETAILS_PAGE_ASSET.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        imageId: { type: "string" },
+        videoId: { type: "string" },
+        placementType: { type: "string" },
+        appStoreVersionLocalizationId: { type: "string" },
+        customProductPageLocalizationId: { type: "string" },
+        treatmentLocalizationId: { type: "string" },
+        appEventLocalizationId: { type: "string" },
+      },
+    },
+    run: async (a) => {
+      const relationships = {};
+      if (a.imageId) relationships.image = { data: { type: "appAssetLibraryImages", id: a.imageId } };
+      else if (a.videoId) relationships.video = { data: { type: "appAssetLibraryVideos", id: a.videoId } };
+      else return { error: "Provide imageId or videoId (the source asset)." };
+      if (a.appStoreVersionLocalizationId)
+        relationships.appStoreVersionLocalization = { data: { type: "appStoreVersionLocalizations", id: a.appStoreVersionLocalizationId } };
+      else if (a.customProductPageLocalizationId)
+        relationships.appCustomProductPageLocalization = { data: { type: "appCustomProductPageLocalizations", id: a.customProductPageLocalizationId } };
+      else if (a.treatmentLocalizationId)
+        relationships.appStoreVersionExperimentTreatmentLocalization = { data: { type: "appStoreVersionExperimentTreatmentLocalizations", id: a.treatmentLocalizationId } };
+      else if (a.appEventLocalizationId)
+        relationships.appEventLocalization = { data: { type: "appEventLocalizations", id: a.appEventLocalizationId } };
+      else return { error: "Provide exactly one destination localization id." };
+      const attributes = {};
+      if (a.placementType) attributes.placementType = a.placementType;
+      return client.post(`/appAssetLibraryPlacements`, {
+        data: { type: "appAssetLibraryPlacements", attributes, relationships },
+      });
+    },
+  },
+  {
+    name: "delete_asset_placement",
+    description: "Remove an Asset Library placement (unassign a reused asset from a localization). Does not delete the asset itself.",
+    inputSchema: { type: "object", properties: { placementId: { type: "string" } }, required: ["placementId"] },
+    run: async (a) => {
+      await client.delete(`/appAssetLibraryPlacements/${a.placementId}`);
+      return { deleted: a.placementId };
+    },
+  },
+
+  // ---- Webhooks ----
+  {
+    name: "list_webhooks",
+    description: "List an app's webhooks (event callbacks). Returns id, name, url, enabled, eventTypes.",
+    inputSchema: { type: "object", properties: { appId: { type: "string" } }, required: ["appId"] },
+    run: async (a) => {
+      const data = await client.getAll(`/apps/${a.appId}/webhooks`);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "get_webhook",
+    description: "Get one webhook by id.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) => client.get(`/webhooks/${a.id}`),
+  },
+  {
+    name: "create_webhook",
+    description:
+      "Create a webhook for an app — App Store Connect will POST to your url when an event fires (no more polling). Up to 10 per app. Common eventTypes: APP_STORE_VERSION_APP_VERSION_STATE_UPDATED, BUILD_UPLOAD_STATE_UPDATED, BUILD_BETA_DETAIL_EXTERNAL_BUILD_STATE_UPDATED, BETA_FEEDBACK_CRASH_SUBMISSION_CREATED, BETA_FEEDBACK_SCREENSHOT_SUBMISSION_CREATED. secret is used to sign deliveries so you can verify them.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        name: { type: "string" },
+        url: { type: "string", description: "HTTPS endpoint to receive events" },
+        eventTypes: { type: "array", items: { type: "string" } },
+        secret: { type: "string", description: "Signing secret for verifying deliveries" },
+        enabled: { type: "boolean", description: "Default true" },
+      },
+      required: ["appId", "name", "url", "eventTypes", "secret"],
+    },
+    run: async (a) =>
+      client.post(`/webhooks`, {
+        data: {
+          type: "webhooks",
+          attributes: { name: a.name, url: a.url, eventTypes: a.eventTypes, secret: a.secret, enabled: a.enabled !== false },
+          relationships: { app: { data: { type: "apps", id: a.appId } } },
+        },
+      }),
+  },
+  {
+    name: "update_webhook",
+    description: "Update a webhook (name, url, eventTypes, enabled, secret). Only pass fields to change.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        name: { type: "string" },
+        url: { type: "string" },
+        eventTypes: { type: "array", items: { type: "string" } },
+        enabled: { type: "boolean" },
+        secret: { type: "string" },
+      },
+      required: ["id"],
+    },
+    run: async (a) => {
+      const attributes = {};
+      for (const k of ["name", "url", "eventTypes", "enabled", "secret"]) if (a[k] !== undefined) attributes[k] = a[k];
+      if (!Object.keys(attributes).length) return { error: "No fields to update." };
+      return client.patch(`/webhooks/${a.id}`, { data: { type: "webhooks", id: a.id, attributes } });
+    },
+  },
+  {
+    name: "delete_webhook",
+    description: "Delete a webhook by id.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) => {
+      await client.delete(`/webhooks/${a.id}`);
+      return { deleted: a.id };
+    },
+  },
+  {
+    name: "list_webhook_deliveries",
+    description: "List recent delivery attempts for a webhook (status, timestamps) — useful for debugging a misbehaving endpoint.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, limit: { type: "number", description: "Max (default 50)" } },
+      required: ["id"],
+    },
+    run: async (a) => {
+      const data = await client.getAll(`/webhooks/${a.id}/deliveries`, { limit: a.limit ?? 50 }, 3);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "ping_webhook",
+    description: "Send a test ping to a webhook to verify your endpoint receives and accepts deliveries.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) =>
+      client.post(`/webhookPings`, {
+        data: { type: "webhookPings", relationships: { webhook: { data: { type: "webhooks", id: a.id } } } },
+      }),
+  },
+
+  // ---- Subscription offer codes (promo-code replacement) ----
+  {
+    name: "list_subscription_offer_codes",
+    description: "List the offer codes defined for a subscription (id, name, offerMode, duration).",
+    inputSchema: { type: "object", properties: { subscriptionId: { type: "string" } }, required: ["subscriptionId"] },
+    run: async (a) => {
+      const data = await client.getAll(`/subscriptions/${a.subscriptionId}/offerCodes`, { limit: 200 });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "create_subscription_offer_code",
+    description:
+      "Create an offer code for a subscription (the modern replacement for promo codes, which Apple is phasing out). offerMode: PAY_AS_YOU_GO | PAY_UP_FRONT | FREE_TRIAL. duration: ONE_WEEK | ONE_MONTH | TWO_MONTHS | THREE_MONTHS | SIX_MONTHS | ONE_YEAR (etc.). customerEligibilities e.g. [\"NEW\",\"EXISTING\",\"EXPIRED\"]. offerEligibility e.g. STACK_WITH_INTRO_OFFERS. prices: one {territory, pricePointId} per territory you offer in (pricePointId from list_app_price_points-style subscription price points). Then generate codes with create_offer_code_one_time_use or create_offer_code_custom.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        subscriptionId: { type: "string" },
+        name: { type: "string" },
+        offerMode: { type: "string" },
+        duration: { type: "string" },
+        numberOfPeriods: { type: "number" },
+        customerEligibilities: { type: "array", items: { type: "string" } },
+        offerEligibility: { type: "string" },
+        autoRenewEnabled: { type: "boolean" },
+        prices: {
+          type: "array",
+          description: "[{ territory: 'USA', pricePointId: '...' }]",
+          items: { type: "object", properties: { territory: { type: "string" }, pricePointId: { type: "string" } } },
+        },
+      },
+      required: ["subscriptionId", "name", "offerMode", "duration", "numberOfPeriods", "customerEligibilities", "offerEligibility", "prices"],
+    },
+    run: async (a) => {
+      const priceRefs = [];
+      const included = [];
+      (a.prices || []).forEach((p, i) => {
+        const tempId = `price${i}`;
+        priceRefs.push({ type: "subscriptionOfferCodePrices", id: tempId });
+        included.push({
+          type: "subscriptionOfferCodePrices",
+          id: tempId,
+          relationships: {
+            subscriptionPricePoint: { data: { type: "subscriptionPricePoints", id: p.pricePointId } },
+            territory: { data: { type: "territories", id: p.territory } },
+          },
+        });
+      });
+      const attributes = {
+        name: a.name,
+        offerMode: a.offerMode,
+        duration: a.duration,
+        numberOfPeriods: a.numberOfPeriods,
+        customerEligibilities: a.customerEligibilities,
+        offerEligibility: a.offerEligibility,
+      };
+      if (a.autoRenewEnabled !== undefined) attributes.autoRenewEnabled = a.autoRenewEnabled;
+      return client.post(`/subscriptionOfferCodes`, {
+        data: {
+          type: "subscriptionOfferCodes",
+          attributes,
+          relationships: {
+            subscription: { data: { type: "subscriptions", id: a.subscriptionId } },
+            prices: { data: priceRefs },
+          },
+        },
+        included,
+      });
+    },
+  },
+  {
+    name: "create_offer_code_one_time_use",
+    description: "Generate a batch of one-time-use codes for an offer code (each code redeemable once). Returns the batch; fetch the code values from its download link.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        offerCodeId: { type: "string" },
+        numberOfCodes: { type: "number" },
+        expirationDate: { type: "string", description: "YYYY-MM-DD" },
+        environment: { type: "string", description: "PRODUCTION (default) or SANDBOX" },
+      },
+      required: ["offerCodeId", "numberOfCodes", "expirationDate"],
+    },
+    run: async (a) => {
+      const attributes = { numberOfCodes: a.numberOfCodes, expirationDate: a.expirationDate };
+      if (a.environment) attributes.environment = a.environment;
+      return client.post(`/subscriptionOfferCodeOneTimeUseCodes`, {
+        data: {
+          type: "subscriptionOfferCodeOneTimeUseCodes",
+          attributes,
+          relationships: { offerCode: { data: { type: "subscriptionOfferCodes", id: a.offerCodeId } } },
+        },
+      });
+    },
+  },
+  {
+    name: "create_offer_code_custom",
+    description: "Create a custom (merchant) code for an offer code — one reusable code string redeemable numberOfCodes times.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        offerCodeId: { type: "string" },
+        customCode: { type: "string" },
+        numberOfCodes: { type: "number" },
+        expirationDate: { type: "string", description: "YYYY-MM-DD (optional)" },
+      },
+      required: ["offerCodeId", "customCode", "numberOfCodes"],
+    },
+    run: async (a) => {
+      const attributes = { customCode: a.customCode, numberOfCodes: a.numberOfCodes };
+      if (a.expirationDate) attributes.expirationDate = a.expirationDate;
+      return client.post(`/subscriptionOfferCodeCustomCodes`, {
+        data: {
+          type: "subscriptionOfferCodeCustomCodes",
+          attributes,
+          relationships: { offerCode: { data: { type: "subscriptionOfferCodes", id: a.offerCodeId } } },
+        },
+      });
+    },
+  },
+  {
+    name: "list_offer_code_codes",
+    description: "List the generated code batches for an offer code. kind: 'oneTimeUse' (default) or 'custom'.",
+    inputSchema: {
+      type: "object",
+      properties: { offerCodeId: { type: "string" }, kind: { type: "string", description: "oneTimeUse (default) or custom" } },
+      required: ["offerCodeId"],
+    },
+    run: async (a) => {
+      const rel = a.kind === "custom" ? "customCodes" : "oneTimeUseCodes";
+      const data = await client.getAll(`/subscriptionOfferCodes/${a.offerCodeId}/${rel}`, { limit: 200 });
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+
+  // ---- In-App Events ----
+  {
+    name: "list_app_events",
+    description: "List an app's In-App Events (promotional events on the App Store). Filter by eventState (e.g. DRAFT, READY_FOR_REVIEW, ACCEPTED, APPROVED, PUBLISHED, PAST).",
+    inputSchema: {
+      type: "object",
+      properties: { appId: { type: "string" }, eventState: { type: "string" } },
+      required: ["appId"],
+    },
+    run: async (a) => {
+      const q = {};
+      if (a.eventState) q["filter[eventState]"] = a.eventState;
+      const data = await client.getAll(`/apps/${a.appId}/appEvents`, q);
+      return data.map((x) => ({ id: x.id, ...x.attributes }));
+    },
+  },
+  {
+    name: "get_app_event",
+    description: "Get one In-App Event by id.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) => client.get(`/appEvents/${a.id}`),
+  },
+  {
+    name: "create_app_event",
+    description: "Create an In-App Event for an app. referenceName is internal. Add locale copy with create_app_event_localization and media via assign_asset_placement(appEventLocalizationId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        referenceName: { type: "string" },
+        primaryLocale: { type: "string" },
+        deepLink: { type: "string" },
+        badge: { type: "string" },
+        purchaseRequirement: { type: "string" },
+        purpose: { type: "string" },
+        priority: { type: "string" },
+      },
+      required: ["appId", "referenceName"],
+    },
+    run: async (a) => {
+      const attributes = { referenceName: a.referenceName };
+      for (const k of ["primaryLocale", "deepLink", "badge", "purchaseRequirement", "purpose", "priority"])
+        if (a[k] !== undefined) attributes[k] = a[k];
+      return client.post(`/appEvents`, {
+        data: { type: "appEvents", attributes, relationships: { app: { data: { type: "apps", id: a.appId } } } },
+      });
+    },
+  },
+  {
+    name: "create_app_event_localization",
+    description: "Add a locale's copy (name, short/long description) to an In-App Event.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        eventId: { type: "string" },
+        locale: { type: "string" },
+        name: { type: "string" },
+        shortDescription: { type: "string" },
+        longDescription: { type: "string" },
+      },
+      required: ["eventId", "locale"],
+    },
+    run: async (a) => {
+      const attributes = { locale: a.locale };
+      for (const k of ["name", "shortDescription", "longDescription"]) if (a[k] !== undefined) attributes[k] = a[k];
+      return client.post(`/appEventLocalizations`, {
+        data: { type: "appEventLocalizations", attributes, relationships: { appEvent: { data: { type: "appEvents", id: a.eventId } } } },
+      });
+    },
+  },
+
+  // ---- Game Center challenges (read) ----
+  {
+    name: "list_game_center_challenges",
+    description: "List Game Center challenges for an app (resolves the app's Game Center detail first). Read-only.",
+    inputSchema: { type: "object", properties: { appId: { type: "string" } }, required: ["appId"] },
+    run: async (a) => {
+      const detail = await client.get(`/apps/${a.appId}/gameCenterDetail`);
+      const detailId = detail.data?.id;
+      if (!detailId) return { error: "This app has no Game Center detail.", appId: a.appId };
+      const data = await client.getAll(`/gameCenterDetails/${detailId}/gameCenterChallenges`);
+      return { gameCenterDetailId: detailId, challenges: data.map((x) => ({ id: x.id, ...x.attributes })) };
+    },
+  },
+  {
+    name: "get_game_center_challenge",
+    description: "Get one Game Center challenge by id, with its versions.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    run: async (a) => client.get(`/gameCenterChallenges/${a.id}`, { include: "versions" }),
+  },
+
   // ---- Generic escape hatch ----
   {
     name: "raw_request",
@@ -5048,7 +5722,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.15.0" },
+  { name: "appstore-api-mcp", version: "1.16.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

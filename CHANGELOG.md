@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.0] - 2026-10-07
+
+### Added — App Store marketing & growth (recent ASC features)
+- **Custom Product Pages:** `list_custom_product_pages`, `get_custom_product_page`,
+  `create_custom_product_page`, `list/create_custom_product_page_version(s)`,
+  `list/create/update_custom_product_page_localization(s)`.
+- **Product Page Optimization (A/B, appStoreVersionExperiments v2):**
+  `list_ppo_experiments`, `get_ppo_experiment`, `create_ppo_experiment`,
+  `start_ppo_experiment`, `stop_ppo_experiment`, `list/create_experiment_treatment(s)`,
+  `create_experiment_treatment_localization`. (Experiment *results* are UI-only —
+  the API exposes no metrics endpoint.)
+- **Asset Library:** `get_asset_library`, `list_asset_library_images/videos`,
+  `upload_asset_library_image`, `assign_asset_placement` (reuse an asset on a
+  product page / event / treatment), `delete_asset_placement`.
+- **Webhooks** (WWDC25): `list/get/create/update/delete_webhook`,
+  `list_webhook_deliveries`, `ping_webhook` — event callbacks for version/build/
+  TestFlight-feedback state, instead of polling.
+- **Subscription offer codes** (promo-code replacement): `list_subscription_offer_codes`,
+  `create_subscription_offer_code`, `create_offer_code_one_time_use`,
+  `create_offer_code_custom`, `list_offer_code_codes`.
+- **In-App Events:** `list/get/create_app_event`, `create_app_event_localization`.
+- **Game Center challenges:** `list_game_center_challenges`, `get_game_center_challenge`.
+- **Screenshots/previews** now attach to Custom Product Page and PPO treatment
+  localizations too: `create_screenshot_set` / `create_app_preview_set` accept
+  `customProductPageLocalizationId` / `treatmentLocalizationId`.
+
 ## [1.15.0] - 2026-10-05
 
 ### Added — submission flow (from 5 field reports of real submissions)

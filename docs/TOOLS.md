@@ -395,7 +395,48 @@ mode and when `APPSTORE_MCP_ALLOW_PRICE_CHANGES=false`.
 ## Product Page Optimization
 
 ### list_app_store_version_experiments
-- `appId` **(required)** — A/B tests with name, state, traffic proportion, start/end.
+- `appId` **(required)** — A/B tests with name, state, traffic proportion, start/end (legacy v1 list).
+
+## Marketing & growth
+
+Recent App Store features — Custom Product Pages, Product Page Optimization (A/B),
+Asset Library, Webhooks, subscription offer codes, In-App Events, Game Center challenges.
+
+### Custom Product Pages
+Alternate product pages (own screenshots/text, each with a unique marketing URL).
+- `list_custom_product_pages(appId)`, `get_custom_product_page(id)`, `create_custom_product_page(appId, name)`
+- `list_custom_product_page_versions(customProductPageId)`, `create_custom_product_page_version(customProductPageId, deepLink?)`
+- `list_custom_product_page_localizations(versionId)`, `create_custom_product_page_localization(versionId, locale, promotionalText?)`, `update_custom_product_page_localization(localizationId, promotionalText)`
+- Screenshots: `create_screenshot_set(customProductPageLocalizationId, displayType)` → `upload_screenshot`.
+
+### Product Page Optimization (A/B, v2)
+- `list_ppo_experiments(versionId)`, `get_ppo_experiment(id)`, `create_ppo_experiment(appId, name, trafficProportion, platform?)`
+- `start_ppo_experiment(id)` / `stop_ppo_experiment(id)` (start/stop via a `started` flag; stop preserves results)
+- `list_experiment_treatments(experimentId)`, `create_experiment_treatment(experimentId, name, appIconName?)`, `create_experiment_treatment_localization(treatmentId, locale)`
+- Screenshots: `create_screenshot_set(treatmentLocalizationId, displayType)`.
+- ⚠️ **Results (conversion %, confidence) are not in the API** — view them in the App Store Connect web UI.
+
+### Asset Library
+Upload media once, reuse across product pages / events / treatments.
+- `get_asset_library(appId)`, `list_asset_library_images(appId, category?)`, `list_asset_library_videos(appId)`
+- `upload_asset_library_image(appId, filePath, category?, referenceName?)` — category `CREATIVE_ASSETS` or `APP_SCREENSHOTS_AND_PREVIEWS`
+- `assign_asset_placement({imageId|videoId}, <one destination localization id>, placementType?)`, `delete_asset_placement(placementId)`
+
+### Webhooks
+Event callbacks instead of polling (≤10 per app).
+- `list_webhooks(appId)`, `get_webhook(id)`, `create_webhook(appId, name, url, eventTypes[], secret, enabled?)`, `update_webhook(id, …)`, `delete_webhook(id)`
+- `list_webhook_deliveries(id)`, `ping_webhook(id)`
+- Common `eventTypes`: `APP_STORE_VERSION_APP_VERSION_STATE_UPDATED`, `BUILD_UPLOAD_STATE_UPDATED`, `BUILD_BETA_DETAIL_EXTERNAL_BUILD_STATE_UPDATED`, `BETA_FEEDBACK_CRASH_SUBMISSION_CREATED`, `BETA_FEEDBACK_SCREENSHOT_SUBMISSION_CREATED`.
+
+### Subscription offer codes (promo-code replacement)
+- `list_subscription_offer_codes(subscriptionId)`, `create_subscription_offer_code(subscriptionId, name, offerMode, duration, numberOfPeriods, customerEligibilities[], offerEligibility, prices[])`
+- `create_offer_code_one_time_use(offerCodeId, numberOfCodes, expirationDate, environment?)`, `create_offer_code_custom(offerCodeId, customCode, numberOfCodes, expirationDate?)`, `list_offer_code_codes(offerCodeId, kind?)`
+
+### In-App Events
+- `list_app_events(appId, eventState?)`, `get_app_event(id)`, `create_app_event(appId, referenceName, …)`, `create_app_event_localization(eventId, locale, …)`
+
+### Game Center challenges (read)
+- `list_game_center_challenges(appId)`, `get_game_center_challenge(id)`
 
 ## Code-signing health
 
