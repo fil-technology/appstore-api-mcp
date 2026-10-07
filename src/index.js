@@ -5430,14 +5430,29 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
   },
   {
     name: "list_webhook_deliveries",
-    description: "List recent delivery attempts for a webhook (status, timestamps) — useful for debugging a misbehaving endpoint.",
+    description:
+      "List delivery attempts for a webhook (status, timestamps, error) — useful for debugging a misbehaving endpoint. The API requires exactly ONE filter: pass deliveryState (SUCCEEDED, FAILED, or PENDING) OR sinceDate (YYYY-MM-DD). Defaults to deliveries created in the last 30 days.",
     inputSchema: {
       type: "object",
-      properties: { id: { type: "string" }, limit: { type: "number", description: "Max (default 50)" } },
+      properties: {
+        id: { type: "string" },
+        deliveryState: { type: "string", description: "SUCCEEDED, FAILED, or PENDING" },
+        sinceDate: { type: "string", description: "YYYY-MM-DD — deliveries created on/after this date" },
+        limit: { type: "number", description: "Max (default 50)" },
+      },
       required: ["id"],
     },
     run: async (a) => {
-      const data = await client.getAll(`/webhooks/${a.id}/deliveries`, { limit: a.limit ?? 50 }, 3);
+      // The deliveries endpoint rejects a filter-less query (400 "Filter is
+      // required and only one must be provided"), so always send exactly one.
+      const query = { limit: a.limit ?? 50 };
+      if (a.deliveryState) query["filter[deliveryState]"] = a.deliveryState;
+      else {
+        const since =
+          a.sinceDate || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+        query["filter[createdDateGreaterThanOrEqualTo]"] = since;
+      }
+      const data = await client.getAll(`/webhooks/${a.id}/deliveries`, query, 3);
       return data.map((x) => ({ id: x.id, ...x.attributes }));
     },
   },
@@ -5722,7 +5737,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.16.0" },
+  { name: "appstore-api-mcp", version: "1.16.1" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

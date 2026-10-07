@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.1] - 2026-10-07
+
+### Fixed
+- `list_webhook_deliveries` returned `400 PARAMETER_ERROR.INVALID` ("Filter is
+  required") — the deliveries endpoint requires exactly one filter, which the
+  tool wasn't sending. It now sends `filter[deliveryState]` (when provided) or
+  defaults to `filter[createdDateGreaterThanOrEqualTo]` (last 30 days). Found via
+  a live webhook create→ping→delete round-trip.
+
 ## [1.16.0] - 2026-10-07
 
 ### Added — App Store marketing & growth (recent ASC features)
