@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.2] - 2026-10-08
+
+### Fixed
+- `list_webhook_deliveries`: the `filter[createdDateGreaterThanOrEqualTo]` default
+  sent a plain `YYYY-MM-DD`, which the API rejects ("cannot be parsed as a
+  date-time. Expected ISO 8601 date-time"). Now sends a full ISO 8601 date-time.
+  (Follow-up to the 1.16.1 filter fix; found by a live create→list→delete probe.)
+
 ## [1.16.1] - 2026-10-07
 
 ### Fixed

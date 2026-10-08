@@ -5448,9 +5448,10 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
       const query = { limit: a.limit ?? 50 };
       if (a.deliveryState) query["filter[deliveryState]"] = a.deliveryState;
       else {
-        const since =
-          a.sinceDate || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-        query["filter[createdDateGreaterThanOrEqualTo]"] = since;
+        // The createdDate filter needs a full ISO 8601 date-TIME, not just a date.
+        const d = a.sinceDate ? new Date(a.sinceDate) : new Date(Date.now() - 30 * 86400000);
+        if (Number.isNaN(d.getTime())) return { error: `Invalid sinceDate: ${a.sinceDate}` };
+        query["filter[createdDateGreaterThanOrEqualTo]"] = d.toISOString();
       }
       const data = await client.getAll(`/webhooks/${a.id}/deliveries`, query, 3);
       return data.map((x) => ({ id: x.id, ...x.attributes }));
@@ -5737,7 +5738,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.16.1" },
+  { name: "appstore-api-mcp", version: "1.16.2" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 
