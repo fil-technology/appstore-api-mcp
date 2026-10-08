@@ -3933,10 +3933,14 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
           error:
             "Refused: apply_ppp_prices needs confirm:true. Run preview_ppp_prices, show the user the table, get explicit approval, then re-call with confirm:true.",
         };
-      // Default preserveCurrentPrice to true for subscriptions (safer for existing subscribers).
-      const preserved = a.preserveCurrentPrice === undefined ? true : a.preserveCurrentPrice;
-      const r = await pppResolve({ ...a, preserveCurrentPrice: preserved });
+      // Resolve with the user's args as-is. Do NOT inject a default
+      // preserveCurrentPrice here: the resolver rejects IAPs when that flag is
+      // set, so defaulting it to true before resolve broke IAP applies.
+      const r = await pppResolve(a);
       if (r.error) return r;
+      // Default preserveCurrentPrice to true for subscriptions only (safer for
+      // existing subscribers); it is a no-op for IAPs.
+      const preserved = a.preserveCurrentPrice === undefined ? true : a.preserveCurrentPrice;
       const result = await pppApply(r.product, r.resolved, {
         preserved,
         startDate: a.startDate,
@@ -5741,7 +5745,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.16.3" },
+  { name: "appstore-api-mcp", version: "1.16.4" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

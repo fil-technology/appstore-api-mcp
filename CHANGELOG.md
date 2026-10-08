@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.4] - 2026-10-08
+
+### Fixed
+- `apply_ppp_prices` could never apply to an **in-app purchase**: it defaulted
+  `preserveCurrentPrice` to true and passed it into the resolver, which rejects
+  IAPs when that flag is set ("applies only to subscriptions"). The default is
+  now applied only when calling the subscription apply path (a no-op for IAPs),
+  after resolution, so IAP PPP pricing works. (Workaround on older versions:
+  pass `preserveCurrentPrice:false` for IAPs.)
+
 ## [1.16.3] - 2026-10-08
 
 ### Fixed
