@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.3] - 2026-10-08
+
+### Fixed
+- **Wrong US price for products with a price change** (affects `list_purchasable_products`
+  and the PPP base price in `preview_ppp_prices` / `apply_ppp_prices`). The US-price
+  lookup returned the *first* USA price row — usually the original base price —
+  instead of the price in effect today. A subscription raised from $0.99 to $2.99
+  reported $0.99, which also skewed every per-territory PPP recommendation derived
+  from it. Now selects the current effective price (latest `startDate` on or before
+  today; `null` = baseline; future-scheduled changes ignored) for both subscriptions
+  and IAPs. New pure `currentEffectivePrice()` helper, unit-tested.
+
 ## [1.16.2] - 2026-10-08
 
 ### Fixed

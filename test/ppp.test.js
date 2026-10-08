@@ -9,6 +9,7 @@ import {
   decodeTerritory,
   minimumPrice,
   tierSummary,
+  currentEffectivePrice,
   MINIMUM_PRICE_HIGH,
   MINIMUM_PRICE_LOW,
 } from "../src/ppp.js";
@@ -121,6 +122,47 @@ test("decodeTerritory reads the territory from a base64 price-point id", () => {
   const id = Buffer.from(JSON.stringify({ t: "CHE", p: "x" })).toString("base64");
   assert.equal(decodeTerritory(id), "CHE");
   assert.equal(decodeTerritory("!!!not-base64!!!"), "");
+});
+
+// ---- Current-effective price selection (the SpeakerMate Weekly bug) ----
+
+test("currentEffectivePrice: picks the dated price over the null base", () => {
+  // SpeakerMate Weekly: base $0.99 (startDate null) raised to $2.99 on 2026-06-06
+  const rows = [
+    { startDate: null, amount: "0.99" },
+    { startDate: "2026-06-06", amount: "2.99" },
+  ];
+  assert.equal(currentEffectivePrice(rows, "2026-10-08"), 2.99);
+});
+
+test("currentEffectivePrice: only a null base returns the base", () => {
+  assert.equal(currentEffectivePrice([{ startDate: null, amount: "4.99" }], "2026-10-08"), 4.99);
+});
+
+test("currentEffectivePrice: ignores a future-scheduled change", () => {
+  const rows = [
+    { startDate: null, amount: "0.99" },
+    { startDate: "2026-06-06", amount: "2.99" },
+    { startDate: "2027-01-01", amount: "3.99" }, // scheduled, not yet active
+  ];
+  assert.equal(currentEffectivePrice(rows, "2026-10-08"), 2.99);
+});
+
+test("currentEffectivePrice: latest active among several past changes", () => {
+  const rows = [
+    { startDate: null, amount: "0.99" },
+    { startDate: "2025-01-01", amount: "1.99" },
+    { startDate: "2026-06-06", amount: "2.99" },
+  ];
+  assert.equal(currentEffectivePrice(rows, "2026-10-08"), 2.99);
+});
+
+test("currentEffectivePrice: empty / all-future returns null", () => {
+  assert.equal(currentEffectivePrice([], "2026-10-08"), null);
+  assert.equal(
+    currentEffectivePrice([{ startDate: "2099-01-01", amount: "9.99" }], "2026-10-08"),
+    null,
+  );
 });
 
 test("tierSummary lists every tier with its default + floor", () => {

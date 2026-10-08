@@ -168,6 +168,28 @@ export function decodeTerritory(pricePointId) {
   }
 }
 
+/**
+ * Pick the CURRENTLY-EFFECTIVE price from dated price rows.
+ *   rows: [{ startDate: string|null, amount: number }]
+ * App Store Connect keeps every price a product has ever had: the original
+ * (startDate null) plus one row per scheduled change. The price customers pay
+ * today is the row with the LATEST startDate that is on or before today; a null
+ * startDate is the baseline (effective from the beginning). Future-dated rows
+ * (a scheduled upcoming change) are ignored. Returns the amount, or null.
+ */
+export function currentEffectivePrice(rows, today = new Date().toISOString().slice(0, 10)) {
+  let best = null;
+  for (const r of rows || []) {
+    const amount = Number(r.amount);
+    if (!Number.isFinite(amount)) continue;
+    const start = r.startDate || null;
+    if (start && start > today) continue; // skip not-yet-active scheduled prices
+    const key = start || ""; // null baseline sorts earliest
+    if (!best || key >= best.key) best = { key, amount };
+  }
+  return best ? best.amount : null;
+}
+
 /** The default coefficient + floor for each tier, for tool docs / previews. */
 export function tierSummary() {
   const seen = new Map();

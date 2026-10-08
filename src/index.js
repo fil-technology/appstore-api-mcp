@@ -32,6 +32,7 @@ import {
   decodeTerritory,
   validateCoefficients,
   tierSummary,
+  currentEffectivePrice,
 } from "./ppp.js";
 import { detectOverlappingOffers } from "./subscriptions.js";
 
@@ -431,13 +432,16 @@ async function pppFetchUsPrice(product) {
     const ppMap = new Map(
       included.filter((i) => i.type === "subscriptionPricePoints").map((i) => [i.id, i]),
     );
+    // Collect ALL USA price rows (original + every scheduled change) with their
+    // startDate, then pick the one effective today — not just the first row,
+    // which is usually the stale original base price.
+    const rows = [];
     for (const price of data) {
       if (price.relationships?.territory?.data?.id !== "USA") continue;
-      const ppId = price.relationships?.subscriptionPricePoint?.data?.id;
-      const pp = ppMap.get(ppId);
-      if (pp) return Number(pp.attributes.customerPrice);
+      const pp = ppMap.get(price.relationships?.subscriptionPricePoint?.data?.id);
+      if (pp) rows.push({ startDate: price.attributes?.startDate ?? null, amount: pp.attributes.customerPrice });
     }
-    return null;
+    return currentEffectivePrice(rows);
   }
   const { data, included } = await client.getAllPages(
     `/inAppPurchasePriceSchedules/${product.id}/manualPrices`,
@@ -449,15 +453,14 @@ async function pppFetchUsPrice(product) {
   const ppMap = new Map(
     included.filter((i) => i.type === "inAppPurchasePricePoints").map((i) => [i.id, i]),
   );
+  const rows = [];
   for (const price of data) {
-    if (price.attributes?.startDate != null) continue; // skip scheduled future prices
     const ppId = price.relationships?.inAppPurchasePricePoint?.data?.id || "";
-    if (decodeTerritory(ppId) === "USA") {
-      const pp = ppMap.get(ppId);
-      if (pp) return Number(pp.attributes.customerPrice);
-    }
+    if (decodeTerritory(ppId) !== "USA") continue;
+    const pp = ppMap.get(ppId);
+    if (pp) rows.push({ startDate: price.attributes?.startDate ?? null, amount: pp.attributes.customerPrice });
   }
-  return null;
+  return currentEffectivePrice(rows);
 }
 
 /** Parse raw price-point rows into { id, customerPrice, territory3 }, skipping bad ones. */
@@ -5738,7 +5741,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.16.2" },
+  { name: "appstore-api-mcp", version: "1.16.3" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 
