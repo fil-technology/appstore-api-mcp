@@ -1,0 +1,10 @@
+// !$*UTF8*$!
+{
+	objects = {
+		A1 = { isa = XCBuildConfiguration; buildSettings = {
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.miniapp;
+				MARKETING_VERSION = 1.0;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MiniApp attaches the photos you pick to a receipt.";
+			}; };
+	};
+}

@@ -81,6 +81,7 @@ const NEW_READS = [
   "list_subscription_offers",
   "find_incomplete_screenshots",
   "diagnose_submission",
+  "preflight_review",
 ];
 
 test("new write tools are gated by read-only mode", () => {

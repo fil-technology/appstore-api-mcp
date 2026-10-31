@@ -1,0 +1,703 @@
+{
+  "source": "https://developer.apple.com/documentation/bundleresources/protected-resources",
+  "note": "Generated from Apple's DocC JSON for each Info.plist key page.",
+  "keys": [
+    {
+      "key": "NFCReaderUsageDescription",
+      "xcodeName": "Privacy - NFC Scan Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to the device’s NFC hardware.",
+      "platforms": [
+        "iOS 11.0",
+        "iPadOS 11.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NFCReaderUsageDescription"
+    },
+    {
+      "key": "NSAccessoryTrackingUsageDescription",
+      "xcodeName": "Privacy - Accessory Tracking Usage Description",
+      "abstract": "A message that tells a person why the app is requesting access to track accessory position and location.",
+      "platforms": [
+        "visionOS 26.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSAccessoryTrackingUsageDescription"
+    },
+    {
+      "key": "NSAppBundlesUsageDescription",
+      "xcodeName": "Privacy - App Management Usage Description",
+      "abstract": "A message that tells people why the app needs to access the contents of other apps’ bundles.",
+      "platforms": [
+        "macOS 13.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSAppBundlesUsageDescription"
+    },
+    {
+      "key": "NSAppDataUsageDescription",
+      "xcodeName": "Privacy - Other Application Data Usage Description",
+      "abstract": "A message that tells people why the app needs to access files in other apps’ sandbox containers.",
+      "platforms": [
+        "macOS 14.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSAppDataUsageDescription"
+    },
+    {
+      "key": "NSAppleEventsUsageDescription",
+      "xcodeName": "Privacy - AppleEvents Sending Usage Description",
+      "abstract": "A message that tells people why the app is requesting the ability to send Apple events.",
+      "platforms": [
+        "macOS 10.14"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSAppleEventsUsageDescription"
+    },
+    {
+      "key": "NSAppleMusicUsageDescription",
+      "xcodeName": "Privacy - Media Library Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their media library.",
+      "platforms": [
+        "iOS 2.0",
+        "iPadOS 2.0",
+        "macOS 15.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSAppleMusicUsageDescription"
+    },
+    {
+      "key": "NSAudioCaptureUsageDescription",
+      "xcodeName": null,
+      "abstract": "A message that tells people why your app is requesting access to capture system audio on macOS.",
+      "platforms": [
+        "macOS 14.2"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSAudioCaptureUsageDescription"
+    },
+    {
+      "key": "NSBluetoothAlwaysUsageDescription",
+      "xcodeName": "Privacy - Bluetooth Always Usage Description",
+      "abstract": "A message that tells people why the app needs access to Bluetooth.",
+      "platforms": [
+        "iOS 13.0",
+        "iPadOS 13.0",
+        "macOS 11.0",
+        "tvOS 13.0",
+        "visionOS 1.0",
+        "watchOS 6.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSBluetoothAlwaysUsageDescription"
+    },
+    {
+      "key": "NSBluetoothPeripheralUsageDescription",
+      "xcodeName": "Privacy - Bluetooth Peripheral Usage Description",
+      "abstract": "A message that tells people why the app is requesting the ability to connect to Bluetooth peripherals.",
+      "platforms": [
+        "iOS 6.0",
+        "iPadOS 6.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSBluetoothPeripheralUsageDescription"
+    },
+    {
+      "key": "NSCalendarsFullAccessUsageDescription",
+      "xcodeName": "Privacy - Calendars Full Access Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to read and write their calendar data.",
+      "platforms": [
+        "iOS 17.0",
+        "iPadOS 17.0",
+        "Mac Catalyst 17.0",
+        "macOS 14.0",
+        "visionOS 1.0",
+        "watchOS 10.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSCalendarsFullAccessUsageDescription"
+    },
+    {
+      "key": "NSCalendarsUsageDescription",
+      "xcodeName": "Privacy - Calendars Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their calendar data.",
+      "platforms": [
+        "iOS 6.0",
+        "iPadOS 6.0",
+        "Mac Catalyst 13.0",
+        "macOS 10.14",
+        "watchOS 6.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSCalendarsUsageDescription"
+    },
+    {
+      "key": "NSCalendarsWriteOnlyAccessUsageDescription",
+      "xcodeName": "Privacy - Calendars Write Only Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to create calendar events.",
+      "platforms": [
+        "iOS 17.0",
+        "iPadOS 17.0",
+        "Mac Catalyst 17.0",
+        "macOS 14.0",
+        "visionOS 1.0",
+        "watchOS 10.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSCalendarsWriteOnlyAccessUsageDescription"
+    },
+    {
+      "key": "NSCameraUsageDescription",
+      "xcodeName": "Privacy - Camera Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to the device’s camera.",
+      "platforms": [
+        "iOS 7.0",
+        "iPadOS 7.0",
+        "macOS 10.14",
+        "tvOS 17.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSCameraUsageDescription"
+    },
+    {
+      "key": "NSContactsUsageDescription",
+      "xcodeName": "Privacy - Contacts Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their contacts.",
+      "platforms": [
+        "iOS 6.0",
+        "iPadOS 6.0",
+        "macOS 10.8",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSContactsUsageDescription"
+    },
+    {
+      "key": "NSCriticalMessagingUsageDescription",
+      "xcodeName": "Privacy - Critical Messaging Usage Description",
+      "abstract": "A message that tells people why the app needs to send SMS messages.",
+      "platforms": [
+        "iOS 18.2",
+        "iPadOS 18.2",
+        "watchOS 11.2"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSCriticalMessagingUsageDescription"
+    },
+    {
+      "key": "NSDesktopFolderUsageDescription",
+      "xcodeName": "Privacy - Desktop Folder Usage Description",
+      "abstract": "A message that tells people why the app needs access to their Desktop folder.",
+      "platforms": [
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSDesktopFolderUsageDescription"
+    },
+    {
+      "key": "NSDocumentsFolderUsageDescription",
+      "xcodeName": "Privacy - Documents Folder Usage Description",
+      "abstract": "",
+      "platforms": [
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSDocumentsFolderUsageDescription"
+    },
+    {
+      "key": "NSDownloadsFolderUsageDescription",
+      "xcodeName": "Privacy - Downloads Folder Usage Description",
+      "abstract": "A message that tells people why the app needs access to the user’s Downloads folder.",
+      "platforms": [
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSDownloadsFolderUsageDescription"
+    },
+    {
+      "key": "NSEnterpriseMCAMUsageDescription",
+      "xcodeName": "Main Camera Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to the device’s main camera.",
+      "platforms": [
+        "visionOS 2.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSEnterpriseMCAMUsageDescription"
+    },
+    {
+      "key": "NSFaceIDUsageDescription",
+      "xcodeName": "Privacy - Face ID Usage Description",
+      "abstract": "A message that tells people why the app is requesting the ability to authenticate with Face ID.",
+      "platforms": [
+        "iOS 11.0",
+        "iPadOS 11.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSFaceIDUsageDescription"
+    },
+    {
+      "key": "NSFallDetectionUsageDescription",
+      "xcodeName": "Privacy - Fall Detection Usage Description",
+      "abstract": "A message to the user that explains the app’s request for permission to access fall detection event data.",
+      "platforms": [
+        "iOS 14.2",
+        "iPadOS 14.2",
+        "visionOS 1.0",
+        "watchOS 7.2"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSFallDetectionUsageDescription"
+    },
+    {
+      "key": "NSFileProviderDomainUsageDescription",
+      "xcodeName": "Privacy - Access to a File Provide Domain Usage Description",
+      "abstract": "A message that tells people why the app needs access to files managed by a file provider.",
+      "platforms": [
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSFileProviderDomainUsageDescription"
+    },
+    {
+      "key": "NSFileProviderPresenceUsageDescription",
+      "xcodeName": "Privacy - File Provider Presence Usage Description",
+      "abstract": "A message that tells people why the app’s file provider needs to determine which files the person is currently accessing.",
+      "platforms": [
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSFileProviderPresenceUsageDescription"
+    },
+    {
+      "key": "NSFinancialDataUsageDescription",
+      "xcodeName": "Privacy - Financial Data Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to financial data stored in Wallet.",
+      "platforms": [
+        "iOS 17.4",
+        "iPadOS 17.4"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSFinancialDataUsageDescription"
+    },
+    {
+      "key": "NSGKFriendListUsageDescription",
+      "xcodeName": null,
+      "abstract": "A message that tells people why the app needs access to their Game Center friends list.",
+      "platforms": [
+        "iOS 14.5",
+        "iPadOS 14.5"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSGKFriendListUsageDescription"
+    },
+    {
+      "key": "NSHandsTrackingUsageDescription",
+      "xcodeName": "Privacy - Hands Tracking Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to track their hand position and location.",
+      "platforms": [
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSHandsTrackingUsageDescription"
+    },
+    {
+      "key": "NSHealthClinicalHealthRecordsShareUsageDescription",
+      "xcodeName": "Privacy - Health Records Usage Description",
+      "abstract": "A message to the user that explains why the app requested permission to read clinical records.",
+      "platforms": [
+        "iOS 12.0",
+        "iPadOS 12.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSHealthClinicalHealthRecordsShareUsageDescription"
+    },
+    {
+      "key": "NSHealthShareUsageDescription",
+      "xcodeName": "Privacy - Health Share Usage Description",
+      "abstract": "A message that explains to people why the app requests permission to read samples from the HealthKit store.",
+      "platforms": [
+        "iOS 8.0",
+        "iPadOS 8.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSHealthShareUsageDescription"
+    },
+    {
+      "key": "NSHealthUpdateUsageDescription",
+      "xcodeName": "Privacy - Health Update Usage Description",
+      "abstract": "A message to the user that explains why the app requested permission to save samples to the HealthKit store.",
+      "platforms": [
+        "iOS 8.0",
+        "iPadOS 8.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSHealthUpdateUsageDescription"
+    },
+    {
+      "key": "NSHomeKitUsageDescription",
+      "xcodeName": "Privacy - HomeKit Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their HomeKit configuration data.",
+      "platforms": [
+        "iOS 8.0",
+        "iPadOS 8.0",
+        "visionOS 1.0",
+        "watchOS 2.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSHomeKitUsageDescription"
+    },
+    {
+      "key": "NSIdentityUsageDescription",
+      "xcodeName": "Privacy - Identity Usage Description",
+      "abstract": "A message that tells people why the app is requesting identity information.",
+      "platforms": [
+        "iOS 16.0",
+        "iPadOS 16.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSIdentityUsageDescription"
+    },
+    {
+      "key": "NSIdentityUsageDescriptionDictionary",
+      "xcodeName": "Privacy - Identity Usage Description Dictionary",
+      "abstract": "A dictionary that contains messages that explain why your app is requesting identity information.",
+      "platforms": [
+        "iOS 26.2",
+        "iPadOS 26.2",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSIdentityUsageDescriptionDictionary"
+    },
+    {
+      "key": "NSLocalNetworkUsageDescription",
+      "xcodeName": "Privacy - Local Network Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to the local network.",
+      "platforms": [
+        "iOS 14.0",
+        "iPadOS 14.0",
+        "macOS 11.0",
+        "tvOS 14.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSLocalNetworkUsageDescription"
+    },
+    {
+      "key": "NSLocationAlwaysAndWhenInUseUsageDescription",
+      "xcodeName": "Privacy - Location Always and When In Use Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their location information at all times.",
+      "platforms": [
+        "iOS 11.0",
+        "iPadOS 11.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSLocationAlwaysAndWhenInUseUsageDescription"
+    },
+    {
+      "key": "NSLocationAlwaysUsageDescription",
+      "xcodeName": "Privacy - Location Always Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their location at all times.",
+      "platforms": [
+        "iOS 8.0",
+        "iPadOS 8.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSLocationAlwaysUsageDescription"
+    },
+    {
+      "key": "NSLocationTemporaryUsageDescriptionDictionary",
+      "xcodeName": "Privacy - Location Temporary Usage Description Dictionary",
+      "abstract": "A collection of messages that explain why the app is requesting temporary access to their location.",
+      "platforms": [
+        "iOS 14.0",
+        "iPadOS 14.0",
+        "macOS 11.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSLocationTemporaryUsageDescriptionDictionary"
+    },
+    {
+      "key": "NSLocationUsageDescription",
+      "xcodeName": "Privacy - Location Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their location information.",
+      "platforms": [
+        "iOS 6.0",
+        "iPadOS 6.0",
+        "macOS 10.14"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSLocationUsageDescription"
+    },
+    {
+      "key": "NSLocationWhenInUseUsageDescription",
+      "xcodeName": "Privacy - Location When In Use Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their location information while the app is running in the foreground.",
+      "platforms": [
+        "iOS 11.0",
+        "iPadOS 11.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSLocationWhenInUseUsageDescription"
+    },
+    {
+      "key": "NSMainCameraUsageDescription",
+      "xcodeName": "Main Camera Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to the device’s main camera.",
+      "platforms": [
+        "visionOS 26.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSMainCameraUsageDescription"
+    },
+    {
+      "key": "NSMicrophoneUsageDescription",
+      "xcodeName": "Privacy - Microphone Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to the device’s microphone.",
+      "platforms": [
+        "iOS 7.0",
+        "iPadOS 7.0",
+        "macOS 10.14",
+        "tvOS 17.0",
+        "visionOS 1.0",
+        "watchOS 4.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSMicrophoneUsageDescription"
+    },
+    {
+      "key": "NSMotionUsageDescription",
+      "xcodeName": "Privacy - Motion Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to the device’s motion data.",
+      "platforms": [
+        "iOS 7.0",
+        "iPadOS 7.0",
+        "macOS 10.15",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSMotionUsageDescription"
+    },
+    {
+      "key": "NSNearbyInteractionAllowOnceUsageDescription",
+      "xcodeName": "Privacy - Nearby Interaction Allow Once Usage Description",
+      "abstract": "A one-time request for user permission to begin an interaction session with nearby devices.",
+      "platforms": [
+        "iOS 14.0",
+        "iPadOS 14.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSNearbyInteractionAllowOnceUsageDescription"
+    },
+    {
+      "key": "NSNearbyInteractionUsageDescription",
+      "xcodeName": "Privacy - Nearby Interaction Usage Description",
+      "abstract": "A request for user permission to begin an interaction session with nearby devices.",
+      "platforms": [
+        "iOS 15.0",
+        "iPadOS 15.0",
+        "watchOS 8.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSNearbyInteractionUsageDescription"
+    },
+    {
+      "key": "NSNetworkVolumesUsageDescription",
+      "xcodeName": "Privacy - Network Volumes Usage Description",
+      "abstract": "A message that tells people why the app needs access to files on a network volume.",
+      "platforms": [
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSNetworkVolumesUsageDescription"
+    },
+    {
+      "key": "NSPhotoLibraryAddUsageDescription",
+      "xcodeName": "Privacy - Photo Library Additions Usage Description",
+      "abstract": "A message that tells people why the app is requesting add-only access to their photo library.",
+      "platforms": [
+        "iOS 11.0",
+        "iPadOS 11.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSPhotoLibraryAddUsageDescription"
+    },
+    {
+      "key": "NSPhotoLibraryUsageDescription",
+      "xcodeName": "Privacy - Photo Library Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their photo library.",
+      "platforms": [
+        "iOS 6.0",
+        "iPadOS 6.0",
+        "macOS 10.14",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSPhotoLibraryUsageDescription"
+    },
+    {
+      "key": "NSRemindersFullAccessUsageDescription",
+      "xcodeName": "Privacy - Reminders Full Access Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to read and write their reminders data.",
+      "platforms": [
+        "iOS 17.0",
+        "iPadOS 17.0",
+        "Mac Catalyst 17.0",
+        "macOS 14.0",
+        "visionOS 1.0",
+        "watchOS 10.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSRemindersFullAccessUsageDescription"
+    },
+    {
+      "key": "NSRemindersUsageDescription",
+      "xcodeName": "Privacy - Reminders Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their reminders.",
+      "platforms": [
+        "iOS 6.0",
+        "iPadOS 6.0",
+        "Mac Catalyst 13.0",
+        "macOS 10.14",
+        "watchOS 6.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSRemindersUsageDescription"
+    },
+    {
+      "key": "NSRemovableVolumesUsageDescription",
+      "xcodeName": "Privacy - Removable Volumes Usage Description",
+      "abstract": "A message that tells people why the app needs access to files on a removable volume.",
+      "platforms": [
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSRemovableVolumesUsageDescription"
+    },
+    {
+      "key": "NSSensorKitUsageDescription",
+      "xcodeName": null,
+      "abstract": "A short description of the purpose of your app’s research study.",
+      "platforms": [
+        "iOS 14.0",
+        "iPadOS 14.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSSensorKitUsageDescription"
+    },
+    {
+      "key": "NSSiriUsageDescription",
+      "xcodeName": "Privacy - Siri Usage Description",
+      "abstract": "A message that tells people why the app is requesting to send user data to Siri.",
+      "platforms": [
+        "iOS 10.0",
+        "iPadOS 10.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSSiriUsageDescription"
+    },
+    {
+      "key": "NSSpeechRecognitionUsageDescription",
+      "xcodeName": "Privacy - Speech Recognition Usage Description",
+      "abstract": "A message that tells people why the app is requesting to send user data to Apple’s speech recognition servers.",
+      "platforms": [
+        "iOS 10.0",
+        "iPadOS 10.0",
+        "macOS 10.15",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSSpeechRecognitionUsageDescription"
+    },
+    {
+      "key": "NSSystemAdministrationUsageDescription",
+      "xcodeName": "Privacy - System Administration Usage Description",
+      "abstract": "A message in macOS that tells people why the app is requesting to manipulate the system configuration.",
+      "platforms": [
+        "macOS 10.14"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSSystemAdministrationUsageDescription"
+    },
+    {
+      "key": "NSSystemExtensionUsageDescription",
+      "xcodeName": "Privacy - System Extension Usage Description",
+      "abstract": "A message that tells people why the app is trying to install a system extension bundle.",
+      "platforms": [
+        "iOS 18.4",
+        "iPadOS 18.4",
+        "Mac Catalyst 18.4",
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSSystemExtensionUsageDescription"
+    },
+    {
+      "key": "NSUserTrackingMarkdownUsageDescription",
+      "xcodeName": "Privacy - Tracking Markdown Usage Description",
+      "abstract": "A message that explains the purpose for accessing data that an application can use to track a person or device.",
+      "platforms": [
+        "iOS 27.2",
+        "iPadOS 27.2"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSUserTrackingMarkdownUsageDescription"
+    },
+    {
+      "key": "NSUserTrackingUsageDescription",
+      "xcodeName": "Privacy - Tracking Usage Description",
+      "abstract": "A message that explains the purpose for accessing data that an app can use to track a person or device.",
+      "platforms": [
+        "iOS 14.0",
+        "iPadOS 14.0",
+        "tvOS 14.0",
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSUserTrackingUsageDescription"
+    },
+    {
+      "key": "NSVideoSubscriberAccountUsageDescription",
+      "xcodeName": "Privacy - Video Subscriber Account Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to their TV provider account.",
+      "platforms": [
+        "tvOS 9.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSVideoSubscriberAccountUsageDescription"
+    },
+    {
+      "key": "NSWorldSensingUsageDescription",
+      "xcodeName": "Privacy - World Sensing Usage Description",
+      "abstract": "A message that tells people why the app is requesting access to image tracking, plane detection, or scene reconstruction.",
+      "platforms": [
+        "visionOS 1.0"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/NSWorldSensingUsageDescription"
+    },
+    {
+      "key": "OSBundleUsageDescription",
+      "xcodeName": "Privacy - Driver Extension Usage Description",
+      "abstract": "A message that tells people why the app is trying to install a driver extension bundle.",
+      "platforms": [
+        "iOS 18.4",
+        "iPadOS 18.4",
+        "Mac Catalyst 18.4",
+        "macOS 10.15"
+      ],
+      "deprecatedOn": [],
+      "url": "https://developer.apple.com/documentation/BundleResources/Information-Property-List/OSBundleUsageDescription"
+    }
+  ]
+}

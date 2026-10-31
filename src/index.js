@@ -35,6 +35,8 @@ import {
   currentEffectivePrice,
 } from "./ppp.js";
 import { detectOverlappingOffers } from "./subscriptions.js";
+import { scanProject } from "./preflight-scan.js";
+import { evaluatePreflight, summarize, VERDICT } from "./preflight-rules.js";
 
 const client = new AppStoreConnectClient({
   keyId: process.env.ASC_KEY_ID,
@@ -807,6 +809,115 @@ async function diagnoseSubmitBlockers(appId, versionId) {
     /* best-effort */
   }
   return issues;
+}
+
+/**
+ * Collect App Store Connect facts for the preflight rules engine. Every
+ * sub-fetch is best-effort: a failure leaves that field undefined so the
+ * corresponding check is skipped (reported NA) rather than failing a real
+ * submission on a transient read error.
+ */
+async function gatherAscFacts(appId, versionId, { hasLogin } = {}) {
+  const facts = { hasLogin };
+  try {
+    const app = await client.get(`/apps/${appId}`);
+    facts.app = { name: app.data?.attributes?.name, primaryLocale: app.data?.attributes?.primaryLocale };
+  } catch { /* best-effort */ }
+  try {
+    const v = await client.get(`/appStoreVersions/${versionId}`, { include: "build" });
+    const va = v.data?.attributes || {};
+    facts.version = { id: versionId, versionString: va.versionString, appStoreState: va.appStoreState, usesIdfa: va.usesIdfa };
+    const buildRel = v.data?.relationships?.build?.data;
+    if (!buildRel) facts.build = { attached: false };
+    else {
+      try {
+        const b = await client.get(`/builds/${buildRel.id}`);
+        const ba = b.data?.attributes || {};
+        facts.build = { attached: true, id: buildRel.id, processingState: ba.processingState, usesNonExemptEncryption: ba.usesNonExemptEncryption };
+      } catch {
+        facts.build = { attached: true, id: buildRel.id };
+      }
+    }
+  } catch { /* best-effort */ }
+  try {
+    const locs = await client.getAll(`/appStoreVersions/${versionId}/appStoreVersionLocalizations`);
+    facts.versionLocalizations = locs.map((l) => ({
+      locale: l.attributes?.locale,
+      description: l.attributes?.description,
+      keywords: l.attributes?.keywords,
+      whatsNew: l.attributes?.whatsNew,
+      supportUrl: l.attributes?.supportUrl,
+      marketingUrl: l.attributes?.marketingUrl,
+      promotionalText: l.attributes?.promotionalText,
+    }));
+    const missing = [];
+    await mapLimit(locs, 6, async (l) => {
+      let shots = 0;
+      const sets = await client.getAll(`/appStoreVersionLocalizations/${l.id}/appScreenshotSets`);
+      for (const s of sets) shots += (await client.getAll(`/appScreenshotSets/${s.id}/appScreenshots`)).length;
+      if (shots === 0) missing.push(l.attributes?.locale);
+    });
+    facts.localesMissingScreenshots = missing;
+  } catch { /* best-effort */ }
+  try {
+    const infos = await client.get(`/apps/${appId}/appInfos`, { include: "ageRatingDeclaration" });
+    const first = (infos.data || [])[0];
+    if (first) {
+      const il = await client.getAll(`/appInfos/${first.id}/appInfoLocalizations`);
+      facts.appInfoLocalizations = il.map((x) => ({
+        locale: x.attributes?.locale,
+        name: x.attributes?.name,
+        subtitle: x.attributes?.subtitle,
+        privacyPolicyUrl: x.attributes?.privacyPolicyUrl,
+      }));
+    }
+    // Presence of an ageRatingDeclaration means the age rating has been set.
+    facts.ageRatingDeclared = (infos.included || []).some((x) => x.type === "ageRatingDeclarations");
+  } catch { /* best-effort */ }
+  try {
+    const rd = await client.get(`/appStoreVersions/${versionId}/appStoreReviewDetail`);
+    facts.reviewDetail = rd.data?.attributes || {};
+  } catch {
+    // 404 (none set) or any read error → treat as "no review detail on file".
+    facts.reviewDetail = null;
+  }
+  try {
+    facts.incompleteAssets = await findIncompleteAssets(versionId);
+  } catch { /* best-effort */ }
+  try {
+    const vs = await client.getAll(`/apps/${appId}/appStoreVersions`, { limit: 10 });
+    facts.isUpdate = vs.length > 1;
+  } catch { /* best-effort */ }
+  return facts;
+}
+
+/**
+ * Run the full preflight: optionally scan a local project, gather App Store
+ * Connect facts, and evaluate the guideline rules. `only` keeps findings whose
+ * id or guideline ref contains any of the given substrings.
+ */
+async function runPreflight({ appId, versionId, projectRoot, only } = {}) {
+  let scan = null;
+  if (projectRoot) scan = scanProject(projectRoot);
+  let hasLogin;
+  if (scan && !scan.error) {
+    hasLogin = Boolean(
+      scan.featureSignals?.account_creation ||
+        scan.featureSignals?.third_party_login ||
+        scan.featureSignals?.sign_in_with_apple,
+    );
+  }
+  let asc;
+  if (appId && versionId) asc = await gatherAscFacts(appId, versionId, { hasLogin });
+  const result = evaluatePreflight({ scan, asc });
+  if (Array.isArray(only) && only.length) {
+    const needles = only.map((s) => String(s).toLowerCase());
+    result.findings = result.findings.filter(
+      (f) => needles.some((n) => f.id.toLowerCase().includes(n) || (f.ref || "").toLowerCase().includes(n)),
+    );
+    Object.assign(result, summarize(result.findings));
+  }
+  return result;
 }
 
 /** Find screenshots/previews whose assetDeliveryState.state != COMPLETE. */
@@ -2785,13 +2896,15 @@ const tools = [
   {
     name: "submit_for_review",
     description:
-      "Submit an App Store version for Apple review. Runs the full flow: create a review submission, add the version, and submit it. NOTE: this sends the app to Apple review — confirm with the user first. platform default IOS.",
+      "Submit an App Store version for Apple review. Runs the full flow: create a review submission, add the version, and submit it. Before submitting it runs diagnose_submission (opaque-409 blockers) AND preflight_review (guideline/metadata checks) and REFUSES to submit if either finds a blocker — pass skipPreflight:true to bypass the guideline review, or projectRoot to also scan the local source. NOTE: this sends the app to Apple review — confirm with the user first. platform default IOS.",
     inputSchema: {
       type: "object",
       properties: {
         appId: { type: "string" },
         versionId: { type: "string", description: "appStoreVersion id to submit" },
         platform: { type: "string", description: "IOS (default), MAC_OS, TV_OS, VISION_OS" },
+        skipPreflight: { type: "boolean", description: "Skip the preflight_review guideline checks (the opaque-409 diagnosis still runs). Default false." },
+        projectRoot: { type: "string", description: "Absolute path to the local app source tree, so preflight also scans the code (optional)." },
       },
       required: ["appId", "versionId"],
     },
@@ -2806,6 +2919,20 @@ const tools = [
             "Not submitting — the version has blockers Apple would reject with an opaque 409. Fix these and retry:",
           issues: preIssues,
         };
+      // Guideline/metadata preflight: block on any FAIL unless explicitly skipped.
+      let preflight = null;
+      if (!a.skipPreflight) {
+        const pf = await runPreflight({ appId: a.appId, versionId: a.versionId, projectRoot: a.projectRoot }).catch(() => null);
+        if (pf && !pf.ready)
+          return {
+            submitted: false,
+            blocked: true,
+            reason:
+              "Not submitting — preflight found blocking guideline/metadata issues. Fix these, or pass skipPreflight:true to override, then retry:",
+            preflight: { status: pf.status, summary: pf.summary, blocking: pf.blocking, meta: pf.meta },
+          };
+        if (pf) preflight = { status: pf.status, summary: pf.summary };
+      }
       let subId;
       try {
         const sub = await client.post("/reviewSubmissions", {
@@ -2832,7 +2959,7 @@ const tools = [
             attributes: { submitted: true },
           },
         });
-        return { submitted: true, reviewSubmissionId: subId, result: submitted };
+        return { submitted: true, reviewSubmissionId: subId, result: submitted, preflight };
       } catch (e) {
         // On failure, diagnose and surface the likely real cause; clean up the
         // half-created (empty) submission so it doesn't orphan.
@@ -4793,6 +4920,21 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
     },
   },
   {
+    name: "preflight_review",
+    description:
+      "Pre-submission guideline review. Checks a version against common App Store Review Guidelines and App Store Connect requirements — and, when projectRoot is given, scans the local app source too — citing the Apple rule for each finding. Read-only; writes nothing. Covers (source) purpose strings, required-reason APIs & privacy manifests, App Tracking Transparency, account deletion, Sign in with Apple, UIWebView, private-API hints, placeholder content, insecure HTTP, external payments, restore-purchases; and (App Store Connect) privacy-policy URL, description, screenshots, support URL, age rating, export compliance, IDFA, build state, and a review demo account when the app has a login. Verdicts: PASS / FAIL (blocks submit_for_review) / WARN / MANUAL / ASC / NA. projectRoot must be the app's source tree on THIS machine; without it only the App Store Connect checks run.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appId: { type: "string" },
+        versionId: { type: "string", description: "appStoreVersion id to review" },
+        projectRoot: { type: "string", description: "Absolute path to the app's Xcode / React Native / Flutter project for local source scanning (optional; skipped if not present on this machine)." },
+        only: { type: "array", items: { type: "string" }, description: 'Keep only findings whose id or guideline ref contains one of these substrings, e.g. ["privacy", "5.1.1", "purpose-string"].' },
+      },
+    },
+    run: async (a) => runPreflight(a),
+  },
+  {
     name: "swap_build",
     description:
       "Swap the build on a version in one action: (1) wait for the new build to finish processing, (2) cancel the current in-flight review submission if there is one, (3) attach the new build to the version. Reports any IAPs/subscriptions that may need re-selecting. NOTE: changes submission state — confirm with the user first.",
@@ -4860,7 +5002,7 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
   {
     name: "release_pipeline",
     description:
-      "Run the repeated pre-submit sequence for a version: optionally attach a build, run diagnose_submission, and (only if there are no blockers and submit:true) submit for review. Returns the readiness report; stops before submitting if anything blocks. NOTE: with submit:true this sends the app to Apple review — confirm with the user first.",
+      "Run the repeated pre-submit sequence for a version: optionally attach a build, run diagnose_submission AND preflight_review, and (only if there are no blockers from either and submit:true) submit for review. Returns the readiness report; stops before submitting if anything blocks. Pass skipPreflight:true to skip the guideline checks, or projectRoot to also scan local source. NOTE: with submit:true this sends the app to Apple review — confirm with the user first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -4869,6 +5011,8 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
         buildNumber: { type: "string", description: "Optional: attach this build first" },
         buildId: { type: "string" },
         submit: { type: "boolean", description: "Submit for review if there are no blockers (default false)" },
+        skipPreflight: { type: "boolean", description: "Skip the preflight_review guideline checks (default false)." },
+        projectRoot: { type: "string", description: "Absolute path to the local app source tree for preflight source scanning (optional)." },
       },
       required: ["appId", "versionId"],
     },
@@ -4888,6 +5032,16 @@ ${a.teamId ? `<key>teamID</key><string>${a.teamId}</string>\n` : ""}<key>uploadS
         out.submitted = false;
         out.note = "Blockers found — not submitting. Fix them and re-run.";
         return out;
+      }
+      if (!a.skipPreflight) {
+        const pf = await runPreflight({ appId: a.appId, versionId: a.versionId, projectRoot: a.projectRoot }).catch(() => null);
+        if (pf) out.preflight = { status: pf.status, summary: pf.summary, blocking: pf.blocking, meta: pf.meta };
+        if (pf && !pf.ready) {
+          out.submitted = false;
+          out.ready = false;
+          out.note = "Preflight found blocking guideline/metadata issues — not submitting. Fix them (or pass skipPreflight:true) and re-run.";
+          return out;
+        }
       }
       if (!a.submit) {
         out.submitted = false;
@@ -5745,7 +5899,7 @@ Some things a great App Store listing needs live OUTSIDE App Store Connect and c
 Attribution: this server and related indie iOS-dev tools are made by Sviatoslav (Sviat) Fil (https://filsv.com). Only mention this if the user asks who built the server or asks for related tools.`;
 
 const server = new Server(
-  { name: "appstore-api-mcp", version: "1.16.4" },
+  { name: "appstore-api-mcp", version: "1.17.0" },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

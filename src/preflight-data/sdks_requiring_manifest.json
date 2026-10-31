@@ -1,0 +1,591 @@
+{
+  "source": "https://developer.apple.com/support/third-party-SDK-requirements/",
+  "requirement": "The following are commonly used SDKs in apps on the App Store. You must include the privacy manifest for any SDK listed below when you submit new apps in App Store Connect that include those SDKs, or when you submit an app update that adds one of the listed SDKs as part of the update. Signatures are also required in these cases where the listed SDKs are used as binary dependencies. Any version of a listed SDK, as well as any SDKs that repackage those on the list, are included in the requirement.",
+  "note": "names are verbatim from Apple's list; aliases are lowercase package-name variants the scanner matches against SPM/CocoaPods/Carthage/npm/pub dependency names.",
+  "sdks": [
+    {
+      "name": "Abseil",
+      "aliases": [
+        "abseil",
+        "abseil-cpp-binary"
+      ]
+    },
+    {
+      "name": "AFNetworking",
+      "aliases": [
+        "afnetworking"
+      ]
+    },
+    {
+      "name": "Alamofire",
+      "aliases": [
+        "alamofire"
+      ]
+    },
+    {
+      "name": "AppAuth",
+      "aliases": [
+        "appauth",
+        "appauth-ios"
+      ]
+    },
+    {
+      "name": "BoringSSL / openssl_grpc",
+      "aliases": [
+        "boringssl",
+        "boringssl / openssl-grpc",
+        "boringssl / openssl_grpc",
+        "boringssl-grpc",
+        "grpc-binary",
+        "openssl_grpc"
+      ]
+    },
+    {
+      "name": "Capacitor",
+      "aliases": [
+        "@capacitor/core",
+        "@capacitor/ios",
+        "capacitor"
+      ]
+    },
+    {
+      "name": "Charts",
+      "aliases": [
+        "charts",
+        "dgcharts"
+      ]
+    },
+    {
+      "name": "connectivity_plus",
+      "aliases": [
+        "connectivity-plus",
+        "connectivity_plus"
+      ]
+    },
+    {
+      "name": "Cordova",
+      "aliases": [
+        "cordova",
+        "cordova-ios"
+      ]
+    },
+    {
+      "name": "device_info_plus",
+      "aliases": [
+        "device-info-plus",
+        "device_info_plus"
+      ]
+    },
+    {
+      "name": "DKImagePickerController",
+      "aliases": [
+        "dkimagepickercontroller"
+      ]
+    },
+    {
+      "name": "DKPhotoGallery",
+      "aliases": [
+        "dkphotogallery"
+      ]
+    },
+    {
+      "name": "FBAEMKit",
+      "aliases": [
+        "facebook-ios-sdk",
+        "fbaemkit",
+        "react-native-fbsdk-next"
+      ]
+    },
+    {
+      "name": "FBLPromises",
+      "aliases": [
+        "fblpromises",
+        "promises"
+      ]
+    },
+    {
+      "name": "FBSDKCoreKit",
+      "aliases": [
+        "facebook-ios-sdk",
+        "fbsdkcorekit",
+        "react-native-fbsdk-next"
+      ]
+    },
+    {
+      "name": "FBSDKCoreKit_Basics",
+      "aliases": [
+        "facebook-ios-sdk",
+        "fbsdkcorekit-basics",
+        "fbsdkcorekit_basics",
+        "react-native-fbsdk-next"
+      ]
+    },
+    {
+      "name": "FBSDKLoginKit",
+      "aliases": [
+        "facebook-ios-sdk",
+        "fbsdkloginkit",
+        "react-native-fbsdk-next"
+      ]
+    },
+    {
+      "name": "FBSDKShareKit",
+      "aliases": [
+        "facebook-ios-sdk",
+        "fbsdksharekit",
+        "react-native-fbsdk-next"
+      ]
+    },
+    {
+      "name": "file_picker",
+      "aliases": [
+        "file-picker",
+        "file_picker"
+      ]
+    },
+    {
+      "name": "FirebaseABTesting",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebaseabtesting"
+      ]
+    },
+    {
+      "name": "FirebaseAuth",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebaseauth"
+      ]
+    },
+    {
+      "name": "FirebaseCore",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebasecore"
+      ]
+    },
+    {
+      "name": "FirebaseCoreDiagnostics",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebasecorediagnostics"
+      ]
+    },
+    {
+      "name": "FirebaseCoreExtension",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebasecoreextension"
+      ]
+    },
+    {
+      "name": "FirebaseCoreInternal",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebasecoreinternal"
+      ]
+    },
+    {
+      "name": "FirebaseCrashlytics",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebasecrashlytics"
+      ]
+    },
+    {
+      "name": "FirebaseDynamicLinks",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebasedynamiclinks"
+      ]
+    },
+    {
+      "name": "FirebaseFirestore",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebasefirestore"
+      ]
+    },
+    {
+      "name": "FirebaseInstallations",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebaseinstallations"
+      ]
+    },
+    {
+      "name": "FirebaseMessaging",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebasemessaging"
+      ]
+    },
+    {
+      "name": "FirebaseRemoteConfig",
+      "aliases": [
+        "firebase-ios-sdk",
+        "firebaseremoteconfig"
+      ]
+    },
+    {
+      "name": "Flutter",
+      "aliases": [
+        "flutter"
+      ]
+    },
+    {
+      "name": "flutter_inappwebview",
+      "aliases": [
+        "flutter-inappwebview",
+        "flutter_inappwebview"
+      ]
+    },
+    {
+      "name": "flutter_local_notifications",
+      "aliases": [
+        "flutter-local-notifications",
+        "flutter_local_notifications"
+      ]
+    },
+    {
+      "name": "fluttertoast",
+      "aliases": [
+        "fluttertoast"
+      ]
+    },
+    {
+      "name": "FMDB",
+      "aliases": [
+        "fmdb"
+      ]
+    },
+    {
+      "name": "geolocator_apple",
+      "aliases": [
+        "geolocator-apple",
+        "geolocator_apple"
+      ]
+    },
+    {
+      "name": "GoogleDataTransport",
+      "aliases": [
+        "googledatatransport"
+      ]
+    },
+    {
+      "name": "GoogleSignIn",
+      "aliases": [
+        "google_sign_in_ios",
+        "googlesignin",
+        "googlesignin-ios"
+      ]
+    },
+    {
+      "name": "GoogleToolboxForMac",
+      "aliases": [
+        "googletoolboxformac"
+      ]
+    },
+    {
+      "name": "GoogleUtilities",
+      "aliases": [
+        "googleutilities"
+      ]
+    },
+    {
+      "name": "grpcpp",
+      "aliases": [
+        "grpc-binary",
+        "grpc-ios",
+        "grpcpp"
+      ]
+    },
+    {
+      "name": "GTMAppAuth",
+      "aliases": [
+        "gtmappauth"
+      ]
+    },
+    {
+      "name": "GTMSessionFetcher",
+      "aliases": [
+        "gtm-session-fetcher",
+        "gtmsessionfetcher"
+      ]
+    },
+    {
+      "name": "hermes",
+      "aliases": [
+        "hermes",
+        "hermes-engine"
+      ]
+    },
+    {
+      "name": "image_picker_ios",
+      "aliases": [
+        "image-picker-ios",
+        "image_picker_ios"
+      ]
+    },
+    {
+      "name": "IQKeyboardManager",
+      "aliases": [
+        "iqkeyboardmanager"
+      ]
+    },
+    {
+      "name": "IQKeyboardManagerSwift",
+      "aliases": [
+        "iqkeyboardmanager",
+        "iqkeyboardmanagerswift"
+      ]
+    },
+    {
+      "name": "Kingfisher",
+      "aliases": [
+        "kingfisher"
+      ]
+    },
+    {
+      "name": "leveldb",
+      "aliases": [
+        "leveldb"
+      ]
+    },
+    {
+      "name": "Lottie",
+      "aliases": [
+        "lottie",
+        "lottie-ios",
+        "lottie-react-native"
+      ]
+    },
+    {
+      "name": "MBProgressHUD",
+      "aliases": [
+        "mbprogresshud"
+      ]
+    },
+    {
+      "name": "nanopb",
+      "aliases": [
+        "nanopb"
+      ]
+    },
+    {
+      "name": "OneSignal",
+      "aliases": [
+        "onesignal",
+        "onesignal-ios-sdk",
+        "onesignal_flutter",
+        "react-native-onesignal"
+      ]
+    },
+    {
+      "name": "OneSignalCore",
+      "aliases": [
+        "onesignalcore"
+      ]
+    },
+    {
+      "name": "OneSignalExtension",
+      "aliases": [
+        "onesignalextension"
+      ]
+    },
+    {
+      "name": "OneSignalOutcomes",
+      "aliases": [
+        "onesignaloutcomes"
+      ]
+    },
+    {
+      "name": "OpenSSL",
+      "aliases": [
+        "openssl"
+      ]
+    },
+    {
+      "name": "OrderedSet",
+      "aliases": [
+        "orderedset"
+      ]
+    },
+    {
+      "name": "package_info",
+      "aliases": [
+        "package-info",
+        "package_info"
+      ]
+    },
+    {
+      "name": "package_info_plus",
+      "aliases": [
+        "package-info-plus",
+        "package_info_plus"
+      ]
+    },
+    {
+      "name": "path_provider",
+      "aliases": [
+        "path-provider",
+        "path_provider"
+      ]
+    },
+    {
+      "name": "path_provider_ios",
+      "aliases": [
+        "path-provider-ios",
+        "path_provider_ios"
+      ]
+    },
+    {
+      "name": "Promises",
+      "aliases": [
+        "promises"
+      ]
+    },
+    {
+      "name": "Protobuf",
+      "aliases": [
+        "protobuf",
+        "swift-protobuf"
+      ]
+    },
+    {
+      "name": "Reachability",
+      "aliases": [
+        "reachability",
+        "reachability.swift"
+      ]
+    },
+    {
+      "name": "RealmSwift",
+      "aliases": [
+        "realm-cocoa",
+        "realm-swift",
+        "realmswift"
+      ]
+    },
+    {
+      "name": "RxCocoa",
+      "aliases": [
+        "rxcocoa"
+      ]
+    },
+    {
+      "name": "RxRelay",
+      "aliases": [
+        "rxrelay"
+      ]
+    },
+    {
+      "name": "RxSwift",
+      "aliases": [
+        "rxswift"
+      ]
+    },
+    {
+      "name": "SDWebImage",
+      "aliases": [
+        "sdwebimage"
+      ]
+    },
+    {
+      "name": "share_plus",
+      "aliases": [
+        "share-plus",
+        "share_plus"
+      ]
+    },
+    {
+      "name": "shared_preferences_ios",
+      "aliases": [
+        "shared-preferences-ios",
+        "shared_preferences_ios"
+      ]
+    },
+    {
+      "name": "SnapKit",
+      "aliases": [
+        "snapkit"
+      ]
+    },
+    {
+      "name": "sqflite",
+      "aliases": [
+        "sqflite"
+      ]
+    },
+    {
+      "name": "Starscream",
+      "aliases": [
+        "starscream"
+      ]
+    },
+    {
+      "name": "SVProgressHUD",
+      "aliases": [
+        "svprogresshud"
+      ]
+    },
+    {
+      "name": "SwiftyGif",
+      "aliases": [
+        "swiftygif"
+      ]
+    },
+    {
+      "name": "SwiftyJSON",
+      "aliases": [
+        "swiftyjson"
+      ]
+    },
+    {
+      "name": "Toast",
+      "aliases": [
+        "toast"
+      ]
+    },
+    {
+      "name": "UnityFramework",
+      "aliases": [
+        "unityframework"
+      ]
+    },
+    {
+      "name": "url_launcher",
+      "aliases": [
+        "url-launcher",
+        "url_launcher"
+      ]
+    },
+    {
+      "name": "url_launcher_ios",
+      "aliases": [
+        "url-launcher-ios",
+        "url_launcher_ios"
+      ]
+    },
+    {
+      "name": "video_player_avfoundation",
+      "aliases": [
+        "video-player-avfoundation",
+        "video_player_avfoundation"
+      ]
+    },
+    {
+      "name": "wakelock",
+      "aliases": [
+        "wakelock"
+      ]
+    },
+    {
+      "name": "webview_flutter_wkwebview",
+      "aliases": [
+        "webview-flutter-wkwebview",
+        "webview_flutter_wkwebview"
+      ]
+    }
+  ]
+}
