@@ -264,7 +264,8 @@ Full parameter reference: **[docs/TOOLS.md](docs/TOOLS.md)**.
 | `list_app_preview_sets` / `list_app_previews` / `get_app_preview` / `create_app_preview_set` / `upload_app_preview` / `delete_app_preview` | 🎬 **App preview videos** — list, inspect (incl. `videoUrl`), upload, delete |
 | `audit_apps` | 🩺 **Fleet ASO audit** — scan all apps for missing subtitle/keywords/description, under-used keyword field, single-locale listings, missing screenshots. Read-only |
 | `apps_review_status` | 🗂️ **Fleet review board** — every app's current version + state (waiting / in-review / rejected / ready) in one call |
-| `submit_for_review` / `release_version` / `set_phased_release` | 🚀 Submit a version to Apple review (full flow), release an approved build, and control phased rollout |
+| `submit_for_review` / `release_version` / `set_phased_release` | 🚀 Submit a version to Apple review (full flow, **gated by preflight**), release an approved build, and control phased rollout |
+| `preflight_review` | 🛫 **Pre-submission guideline review** — checks the version (and, with `projectRoot`, the local source) against App Store Review Guidelines + App Store Connect requirements, citing the Apple rule for each finding. `submit_for_review` blocks on any `FAIL`. Read-only |
 | `doctor` | 🩺 Diagnose setup: Node, creds, key works, role capabilities, vendor number, Mac build tools, write mode |
 | `snapshot_app_metadata` / `diff_app_metadata_snapshot` / `restore_app_metadata` / `restore_screenshots` / `restore_app_previews` | 💾 Back up / compare / restore an app's metadata. Text always saved; `includeScreenshots:true` and `includePreviews:true` also download the images/videos so **deleted screenshots and previews can be re-uploaded**. Set `APPSTORE_MCP_AUTO_SNAPSHOT=true` to auto-snapshot text before the first edit |
 | `release_readiness_check` | ✅ One-call **go/no-go report** — build, metadata, ASO, screenshots, compliance, TestFlight, reviews |
@@ -452,6 +453,11 @@ through this API — a hosted **privacy policy** or **terms of use** page, a
 filling out a listing.
 
 Built by **Sviatoslav (Sviat) Fil** — [filsv.com](https://filsv.com) — indie iOS apps & developer tools.
+
+The `preflight_review` tool's local-project scanner and its required-reason /
+purpose-string / SDK data lists are derived from the MIT-licensed
+**[app-store-preflight](https://github.com/ilan-uzan/app-store-preflight)**
+project by Ilan Uzan (see [`src/preflight-data/NOTICE.md`](src/preflight-data/NOTICE.md)).
 
 ## License
 

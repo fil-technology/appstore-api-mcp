@@ -319,8 +319,11 @@ Fleet review-status board across all (or selected) apps. Read-only.
 
 ### submit_for_review
 Submits a version to Apple review (create submission → add version → submit).
-**Sends the app to review — confirm first.**
+Runs `diagnose_submission` **and** `preflight_review` first and refuses to submit
+if either finds a blocker. **Sends the app to review — confirm first.**
 - `appId` **(required)**, `versionId` **(required)**, `platform` (default IOS)
+- `skipPreflight` — bypass the guideline review (the 409 diagnosis still runs)
+- `projectRoot` — also scan the local source during preflight
 
 ### release_version
 Release an approved version waiting for manual release (PENDING_DEVELOPER_RELEASE).
@@ -593,10 +596,49 @@ already in review.
 
 ### Diagnostics & orchestrators
 - `diagnose_submission(appId, versionId)` — read-only: the exact blockers behind submit's 409.
+- `preflight_review(appId?, versionId?, projectRoot?, only?)` — read-only guideline/metadata review (see below).
 - `swap_build(appId, versionId, buildNumber|buildId)` — wait for processing → cancel in-flight review → attach.
-- `release_pipeline(appId, versionId, buildNumber?, submit?)` — attach → diagnose → (if clean and `submit:true`) submit.
+- `release_pipeline(appId, versionId, buildNumber?, submit?, skipPreflight?, projectRoot?)` — attach → diagnose → **preflight** → (if clean and `submit:true`) submit.
 - `bulk_upsert_localizations(versionId, { locale: {…} })` — version + app-info fields across all locales, creates missing ones; `dryRun` supported.
 - `list_app_territories(appId)` — compact availability summary.
+
+## Preflight — App Store guideline review
+
+A pre-submission review that checks an app against common **App Store Review
+Guidelines** and **App Store Connect** requirements, citing the Apple rule for
+each finding. Inspired by (and partly ported from) the MIT-licensed
+[app-store-preflight](https://github.com/ilan-uzan/app-store-preflight) project.
+
+### `preflight_review`
+Read-only; writes nothing.
+- `appId`, `versionId` — the version to review (runs the App Store Connect checks).
+- `projectRoot` — absolute path to the app's local source tree (Xcode / React
+  Native / Flutter). When given, the code is scanned too; when omitted, only the
+  App Store Connect checks run. The path must be on the machine the server runs on.
+- `only` — array of substrings; keep only findings whose id or guideline ref matches
+  (e.g. `["privacy", "5.1.1", "purpose-string"]`).
+- **Returns:** `{ status, ready, summary, blocking, findings, meta }`. Each finding has
+  `{ id, verdict, ref, url, title, detail, evidence?, fix? }`.
+
+**Verdicts:** `PASS` · `FAIL` (blocks `submit_for_review`) · `WARN` · `MANUAL`
+(only the developer can confirm) · `ASC` · `NA`.
+
+**What it checks**
+
+- *Local source (needs `projectRoot`):* purpose strings for permission APIs
+  (camera, mic, location, contacts, calendar, HealthKit, …); required-reason APIs
+  declared in a privacy manifest; SDKs that need a manifest; App Tracking
+  Transparency; account creation without in-app account deletion; Sign in with
+  Apple; deprecated `UIWebView`; private-API hints; placeholder content; insecure
+  HTTP; external payment SDKs; Restore Purchases; export-compliance key.
+- *App Store Connect (needs `appId` + `versionId`):* privacy-policy URL,
+  description and support URL per locale, screenshots per locale, media still
+  processing, age rating, build attached & VALID, per-build export compliance,
+  IDFA declaration, and a review demo account / notes when the app has a login.
+
+`submit_for_review` and `release_pipeline` run this automatically and **refuse to
+submit when any finding is FAIL** — pass `skipPreflight:true` to bypass the
+guideline review (the opaque-409 diagnosis still runs).
 
 ## Build & ship (macOS + Xcode)
 

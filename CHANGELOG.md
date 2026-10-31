@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.17.0] - 2026-10-31
+
+### Added
+- **Preflight guideline review before every submission.** A new read-only
+  `preflight_review` tool checks a version against common App Store Review
+  Guidelines and App Store Connect requirements, citing the Apple rule for each
+  finding and returning a `PASS / FAIL / WARN / MANUAL / ASC / NA` verdict with
+  evidence and a fix.
+  - *App Store Connect checks* (need `appId` + `versionId`): privacy-policy URL,
+    description and support URL per locale, screenshots per locale, media still
+    processing, age rating, build attached & VALID, per-build export compliance,
+    IDFA declaration, and a review demo account / notes when the app has a login.
+  - *Local source checks* (pass `projectRoot`, the app's source tree on this
+    machine): purpose strings for permission APIs, required-reason APIs declared
+    in a privacy manifest, SDKs that need a manifest, App Tracking Transparency,
+    account creation without in-app account deletion, Sign in with Apple,
+    deprecated `UIWebView`, private-API hints, placeholder content, insecure
+    HTTP, external payment SDKs, Restore Purchases, and the export-compliance key.
+- `submit_for_review` and `release_pipeline` now run preflight automatically and
+  **refuse to submit when any finding is FAIL**. New `skipPreflight` (bypass the
+  guideline review; the opaque-409 diagnosis still runs) and `projectRoot`
+  (also scan local source) options on both.
+
+The local scanner is a zero-dependency JavaScript port of the scanner from the
+MIT-licensed [app-store-preflight](https://github.com/ilan-uzan/app-store-preflight)
+project by Ilan Uzan; the bundled required-reason / purpose-string / SDK data
+lists come from the same project (see `src/preflight-data/NOTICE.md`). The rules
+that turn facts into guideline-cited verdicts are original to this project.
+
 ## [1.16.4] - 2026-10-08
 
 ### Fixed
