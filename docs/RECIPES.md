@@ -35,6 +35,20 @@ blockers first.
 
 Uses: `release_readiness_check` (single call), or the individual tools.
 
+For a **guideline/metadata** review (not just completeness), add `preflight_review`
+— it cites the App Store Review Guideline for each finding and marks blocking
+`FAIL`s. Pass `projectRoot` to also scan the local source (purpose strings,
+privacy manifests, account deletion, ATT, UIWebView, …):
+
+```text
+Run a preflight review for AppName v1.4.0 against the App Store guidelines. My
+Xcode project is at /path/to/AppName. Show the status, every FAIL with its
+Apple rule and fix, then the warnings.
+```
+
+Uses: `preflight_review` (read-only). `submit_for_review` runs this automatically
+and refuses to submit on any `FAIL`.
+
 <details><summary>Example output (fake data)</summary>
 
 | Area | Status | Detail |
@@ -64,6 +78,11 @@ my OK → (4) submit to App Review → (5) pause → (6) release or start phased
 Uses: `list_builds`, `list_beta_groups`, `list_beta_testers`,
 `add_build_to_beta_group`, `submit_beta_review`, `submit_for_review`,
 `release_version`, `set_phased_release`. **Stops at each human gate.**
+
+> At gate (4), `submit_for_review` runs `diagnose_submission` **and**
+> `preflight_review` first and refuses to submit on any `FAIL`. Pass
+> `projectRoot` to also scan the local source, or `skipPreflight:true` to bypass
+> the guideline review (the opaque-409 diagnosis still runs).
 
 ## 4. Customer reviews → release notes loop
 
